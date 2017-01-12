@@ -1,1 +1,5 @@
 .DS_Store
+build/
+conan_imports_manifest.txt
+conanbuildinfo.cmake
+conaninfo.txt

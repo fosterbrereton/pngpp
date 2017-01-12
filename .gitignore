@@ -3,3 +3,4 @@ build/
 conan_imports_manifest.txt
 conanbuildinfo.cmake
 conaninfo.txt
+*.sublime-workspace

@@ -2,7 +2,7 @@ Boilerplate is a relatively empty project that includes a number of common C++ d
 
 # Required Binaries
 
-You must have these downloaded and accessible before you can begin. **Mac note**: Both binaries are available via `homebrew`.
+You must have these downloaded and accessible before you can begin. **Mac note**: Both binaries are available via [`homebrew`](http://brew.sh/). **Win note**: `cmake` is available via [`scoop`](http://scoop.sh/).
 
 - [`conan`](https://www.conan.io/) ([download](https://www.conan.io/downloads))
 - [`CMake`](https://cmake.org/) ([download](https://cmake.org/download/))

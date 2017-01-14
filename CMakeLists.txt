@@ -1,8 +1,9 @@
 project (boilerplate)
 cmake_minimum_required (VERSION 2.6)
 
-include(${CMAKE_BINARY_DIR}/../conanbuildinfo.cmake)
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
+set(CMAKE_SKIP_RPATH OFF)
 
 file(GLOB APP_SRC ./src/*.cpp)
 

@@ -8,6 +8,3 @@ cmake
 [imports]
 bin, *.dll -> ./build/bin # copies package bin folder DLLs to "bin" folder
 lib, *.dylib -> ./build/bin # copies package lib folder DLLs to "bin" folder
-
-[options]
-tbb:shared=True

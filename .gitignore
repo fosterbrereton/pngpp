@@ -1,6 +1,8 @@
+*.sublime-workspace
 .DS_Store
-build/
+build_debug/
+build_release/
 conan_imports_manifest.txt
 conanbuildinfo.cmake
 conaninfo.txt
-*.sublime-workspace
+

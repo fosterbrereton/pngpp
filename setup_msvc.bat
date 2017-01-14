@@ -18,7 +18,7 @@ POPD
 MKDIR build_release
 PUSHD build_release
 
-conan install .. --build=missing -s build_type=Release -s compiler="Visual Studio" -s compiler.runtime="MDd"
+conan install .. --build=missing -s build_type=Release -s compiler="Visual Studio" -s compiler.runtime="MD"
 
 cmake -G "Visual Studio 14 Win64" ..
 

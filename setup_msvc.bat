@@ -1,9 +1,9 @@
 @ECHO OFF
 
-set VC_ROOT=%ProgramFiles%\Microsoft Visual Studio 14.0\VC\
+set VC_ROOT=%VS140COMNTOOLS%..\..\VC\
 
-if exist "%VC_ROOT%bin\VCVARS32.BAT" (
-    call "%VC_ROOT%bin\VCVARS32.BAT"
+if exist "%VC_ROOT%vcvarsall.bat" (
+    call "%VC_ROOT%vcvarsall.bat" x86_amd64
 )
 
 MKDIR build_debug

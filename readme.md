@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/fosterbrereton/boilerplate.svg?branch=master)](https://travis-ci.org/fosterbrereton/boilerplate)
+
 Boilerplate is a relatively empty project that includes a number of common C++ dependencies, to get an initial framework up and running quickly.
 
 # Required Binaries

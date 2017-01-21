@@ -13,7 +13,10 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - g++-5
-      install: if [ "$CXX" = "g++" ]; then export CXX="g++-5" CC="gcc-5"; fi
+      before_install:
+        - if [ "$CXX" = "g++" ]; then export CXX="g++-5" CC="gcc-5"; fi
+        - pip install conan
+      script: cmake .. && make
     - compiler: clang
       addons:
         apt:
@@ -22,15 +25,26 @@ matrix:
             - llvm-toolchain-precise-3.8
           packages:
             - clang-3.8
-      install: if [ "$CXX" = "g++" ]; then export CXX="clang++-3.8" CC="clang-3.8"; fi
-before_install:
-    - pip install conan
-script:
+      before_install:
+        - if [ "$CXX" = "g++" ]; then export CXX="clang++-3.8" CC="clang-3.8"; fi
+        - pip install conan
+      script: cmake .. && make
+    - os: osx
+      osx_image: xcode8.2
+      before_install:
+        - brew update
+        - brew outdated conan || brew upgrade conan
+        - brew outdated cmake || brew upgrade cmake
+      before_script:
+        - ../setup_xcode.sh
+      script:
+        - xcodebuild
+install:
     - mkdir build
     - cd build
-    - conan install ./.. --build=missing
-    - cmake .. && make
-    - cd bin # It'd be great if we could just run all the binaries we find in here...
+    - conan install .. --build=missing
+after_script:
+    - pushd build/bin # It'd be great if we could just run all the binaries we find in here...
     - ./boilerplate
 notifications:
   recipients:

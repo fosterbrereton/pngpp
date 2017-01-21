@@ -35,8 +35,8 @@ matrix:
       osx_image: xcode8.2
       before_install:
         - brew update
-        - brew outdated conan || brew upgrade conan
-        - brew outdated cmake || brew upgrade cmake
+        - brew outdated conan || brew upgrade conan || brew install conan
+        - brew outdated cmake || brew upgrade cmake || brew install cmake
       before_script:
         - ../setup_xcode.sh
         - xcodebuild

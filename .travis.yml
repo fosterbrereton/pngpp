@@ -37,6 +37,7 @@ matrix:
         - brew update
         - brew install conan
         # - brew outdated cmake || brew upgrade cmake
+        - if [ "$CXX" = "g++" ]; then export CXX="clang++" CC="clang"; fi
       before_script:
         - ../setup_xcode.sh
         - xcodebuild

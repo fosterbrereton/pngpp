@@ -48,9 +48,8 @@ matrix:
         - brew install conan
         # - brew outdated cmake || brew upgrade cmake
         - if [ "$CXX" = "g++" ]; then export CXX="clang++" CC="clang"; fi
-      script:
-        - cd ..
         - ./setup_xcode.sh
+      script:
         - cd build_debug
         - xcodebuild
         - cd bin # It'd be great if we could just run all the binaries we find in here...

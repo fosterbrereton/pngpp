@@ -39,7 +39,9 @@ matrix:
         # - brew outdated cmake || brew upgrade cmake
         - if [ "$CXX" = "g++" ]; then export CXX="clang++" CC="clang"; fi
       before_script:
-        - ../setup_xcode.sh
+        - cd ..
+        - ./setup_xcode.sh
+        - cd build
         - xcodebuild
 install:
     - mkdir build

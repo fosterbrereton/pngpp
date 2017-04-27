@@ -1,4 +1,7 @@
 language: generic
+cache:
+  directories:
+    - $HOME/.conan
 matrix:
   include:
     - os: linux

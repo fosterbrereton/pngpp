@@ -4,4 +4,3 @@
 
 // application
 #include <pngpp/files.hpp>
-

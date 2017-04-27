@@ -1,8 +1,30 @@
 {
 	"folders":
 	[
-		{
-			"path": "."
-		}
+        {
+            "path": ".",
+            "file_exclude_patterns": ["pngpp.sublime-project"],
+            "folder_exclude_patterns": ["build_debug", "build_release"]
+        },
+        {
+            "path": "c2ee4315-ce7b-4614-b44e-08d986751b99",
+            "name": "-=-=- Dependencies -=-=-"
+        },
+        {
+            "path": "~/.conan/data/Boost/1.64.0/inexorgame/stable/package/514b6c057fe146067463ecc6ef8613fcb8eebed8/include",
+            "name": "boost"
+        },
+        {
+            "path": "~/.conan/data/libpng/1.6.23/lasote/stable/package/8c0abac873a1a7135001d0a5bbc736164dc301b4/include",
+            "name": "libpng"
+        },
+        {
+            "path": "~/.conan/data/TBB/4.4.4/memsharded/testing/package/bf9425c3e086842167338a990fcb3b9e99b21fd2/include",
+            "name": "tbb"
+        },
+        {
+            "path": "~/.conan/data/zlib/1.2.11/lasote/stable/package/a328b3b4b01520832d0884f6f856bf2175f3d543/include",
+            "name": "zlib"
+        }
 	]
 }

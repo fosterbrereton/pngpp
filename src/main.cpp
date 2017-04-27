@@ -11,11 +11,9 @@
 // boost
 #include <boost/program_options.hpp>
 
-// libpng
-#include <png.h>
-
 // application
 #include <pngpp/files.hpp>
+#include <pngpp/png.hpp>
 
 /**************************************************************************************************/
 
@@ -30,6 +28,8 @@ int main(int argc, char** argv) try {
     path_t path(canonical(argv[1]));
 
     std::cout << "Found `" << path.string() << "`\n";
+
+    image_t image(read_png(path.string()));
 
     return 0;
 } catch (const std::exception& error) {

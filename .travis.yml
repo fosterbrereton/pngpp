@@ -2,6 +2,8 @@ language: generic
 cache:
   directories:
     - $HOME/.conan
+sudo: required
+dist: trusty
 matrix:
   include:
     - os: linux

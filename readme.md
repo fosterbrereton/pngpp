@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/fosterbrereton/boilerplate.svg?branch=master)](https://travis-ci.org/fosterbrereton/boilerplate)
+[![Build status](https://travis-ci.org/fosterbrereton/pngpp.svg?branch=master)](https://travis-ci.org/fosterbrereton/pngpp)
 
 Boilerplate is a relatively empty project that includes a number of common C++ dependencies, to get an initial framework up and running quickly.
 
@@ -21,6 +21,10 @@ From the command line, run `setup_msvc.bat`.
 
 # Included Dependencies
 
-[![conan-boost](https://img.shields.io/badge/conan.io-Boost%2F1.60.0-green.svg)](http://www.conan.io/source/Boost/1.60.0/lasote/stable)
+[![conan-boost](https://img.shields.io/badge/conan.io-boost%201.64.0-green.svg)](http://www.conan.io/source/Boost/1.64.0/inexorgame/stable)
 
-[![conan-tbb](https://img.shields.io/badge/conan.io-tbb%2F4.4.4-green.svg)](http://www.conan.io/source/TBB/4.4.4/memsharded/testing)
+[![conan-zlib](https://img.shields.io/badge/conan.io-zlib%201.2.11-green.svg)](http://www.conan.io/source/zlib/1.2.11/lasote/stable)
+
+[![conan-linpng](https://img.shields.io/badge/conan.io-libpng%201.6.23-green.svg)](http://www.conan.io/source/libpng/1.6.23/lasote/stable)
+
+[![conan-tbb](https://img.shields.io/badge/conan.io-tbb%204.4.4-green.svg)](http://www.conan.io/source/TBB/4.4.4/memsharded/testing)

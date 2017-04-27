@@ -2,7 +2,7 @@ cache:
   directories: 
     - $HOME/.conan
 dist: trusty
-language: cpp
+language: generic
 matrix: 
   include: 
     - 

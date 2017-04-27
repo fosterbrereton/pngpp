@@ -1,6 +1,8 @@
 project (boilerplate)
 cmake_minimum_required (VERSION 2.6)
 
+set(CMAKE_CXX_FLAGS "-g -Wall -std=c++11")
+
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 set(CMAKE_SKIP_RPATH OFF)

@@ -28,77 +28,52 @@ class buffer_t {
     };
 
     std::unique_ptr<void, deleter_t> _buffer;
-    std::size_t _size;
     std::size_t _capacity;
 
 public:
     typedef std::uint8_t value_type;
 
-    buffer_t() : _size(0), _capacity(0) {}
+    buffer_t() : _capacity(0) {}
 
     explicit buffer_t(std::size_t size)
-        : _buffer(std::malloc(size)), _size(size), _capacity(size) {}
+        : _buffer(std::malloc(size)), _capacity(size) {}
 
-    buffer_t(const buffer_t& rhs) : buffer_t(rhs._size) {
-        if (_size)
-            std::memcpy(data(), rhs.data(), _size);
+    buffer_t(const buffer_t& rhs) : buffer_t(rhs._capacity) {
+        if (_capacity)
+            std::memcpy(data(), rhs.data(), _capacity);
     }
 
     buffer_t(buffer_t&& rhs)
-        : _buffer(std::move(rhs._buffer)), _size(std::move(rhs._size)),
+        : _buffer(std::move(rhs._buffer)),
           _capacity(std::move(rhs._capacity)) {
-        rhs._size     = 0;
         rhs._capacity = 0;
     }
 
     buffer_t& operator=(buffer_t rhs) {
         _buffer   = std::move(rhs._buffer);
-        _size     = std::move(rhs._size);
         _capacity = std::move(rhs._capacity);
         return *this;
     }
 
     bool empty() const {
-        return _size == 0;
-    }
-    std::size_t size() const {
-        return _size;
+        return _capacity == 0;
     }
     std::size_t capacity() const {
         return _capacity;
     }
 
     // returns true iff reallocation happened
-    bool resize(std::size_t size) {
-        if (size <= _capacity) {
-            _size = size;
+    bool resize(std::size_t cap) {
+        if (cap <= _capacity) {
             return false;
         }
 
         std::size_t grow_cap = static_cast<std::size_t>(std::ceil(_capacity * 1.4));
-        std::size_t new_cap  = std::max(size, grow_cap);
+        std::size_t new_cap  = std::max(cap, grow_cap);
+        buffer_t    result(new_cap);
 
-        buffer_t result(new_cap);
-
-        if (_size)
-            std::memcpy(result.data(), data(), _size);
-
-        result.resize(size);
-
-        std::swap(*this, result);
-
-        return true;
-    }
-
-    // returns true iff reallocation happened
-    bool shrink_to_fit() {
-        if (_size == _capacity)
-            return false;
-
-        buffer_t result(_size);
-
-        if (_size)
-            std::memcpy(result.data(), data(), _size);
+        if (_capacity)
+            std::memcpy(result.data(), data(), _capacity);
 
         std::swap(*this, result);
 
@@ -127,10 +102,62 @@ public:
     }
 
     value_type* end() {
-        return data() + size();
+        return data() + capacity();
     }
     const value_type* end() const {
-        return data() + size();
+        return data() + capacity();
+    }
+};
+
+/**************************************************************************************************/
+
+class bufferstream_t {
+    buffer_t    _buffer;
+    std::size_t _pos{0};
+
+public:
+    typedef buffer_t::value_type value_type;
+
+    void write(void* buffer, std::size_t size) {
+        std::size_t needed(_pos + size);
+
+        if (needed > capacity())
+            _buffer.resize(needed);
+
+        std::memcpy(end(), buffer, size);
+
+        _pos += size;
+    }
+
+    bool empty() const {
+        return _pos == 0;
+    }
+    std::size_t size() const {
+        return _pos;
+    }
+    std::size_t capacity() const {
+        return _buffer.capacity();
+    }
+
+    value_type* data() {
+        return _buffer.data();
+    }
+    const value_type* data() const {
+        return _buffer.data();
+    }
+
+    value_type* begin() {
+        return _buffer.begin();
+    }
+    const value_type* begin() const {
+        return _buffer.begin();
+    }
+
+    value_type* end() {
+        return data() + _pos;
+    }
+    const value_type* end() const {
+        return data() + _pos;
     }
 };
 

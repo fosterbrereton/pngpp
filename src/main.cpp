@@ -25,11 +25,17 @@ int main(int argc, char** argv) try {
     if (argc <= 1)
         throw std::runtime_error("Source file not specified");
 
-    path_t path(canonical(argv[1]));
+    if (argc <= 2)
+        throw std::runtime_error("Destination file not specified");
 
-    std::cout << "Found `" << path.string() << "`\n";
+    path_t input(canonical(argv[1]));
+    path_t output(argv[2]);
 
-    image_t image(read_png(path.string()));
+    image_t image(read_png(input.string()));
+
+    write_options_t options;
+
+    write_png(image, output.string(), options);
 
     return 0;
 } catch (const std::exception& error) {

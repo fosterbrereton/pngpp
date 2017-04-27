@@ -11,6 +11,9 @@
 // libpng
 #include <png.h>
 
+// zlib
+#include <zlib.h>
+
 // application
 #include <pngpp/image.hpp>
 
@@ -24,7 +27,22 @@ image_t read_png(const std::string& path);
 
 /**************************************************************************************************/
 
-class png_writer_t {};
+enum class write_mode {
+    one,
+    mid,
+    max
+};
+
+struct write_options_t {
+    write_mode _mode{write_mode::one};
+    int        _one_z_compression{Z_BEST_COMPRESSION};
+    int        _one_z_strategy{Z_FILTERED};
+    int        _one_png_filter{PNG_ALL_FILTERS};
+};
+
+void write_png(const image_t&         image,
+               const std::string&     path,
+               const write_options_t& options);
 
 /**************************************************************************************************/
 

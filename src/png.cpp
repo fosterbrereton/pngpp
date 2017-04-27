@@ -183,7 +183,7 @@ image_t png_reader_t::read() {
 class png_writer_t {
     std::ofstream _output;
 
-    static void flush_thunk(png_structp png) { }
+    static void flush_thunk(png_structp png) {}
     static void write_thunk(png_structp png, png_bytep buffer, png_size_t size);
     void write(png_bytep buffer, png_size_t size);
 
@@ -200,13 +200,11 @@ public:
 /**************************************************************************************************/
 
 png_writer_t::png_writer_t(const std::string& path)
-    : _output(path.c_str(), std::ios_base::out | std::ios_base::binary) {
-}
+    : _output(path.c_str(), std::ios_base::out | std::ios_base::binary) {}
 
 /**************************************************************************************************/
 
-png_writer_t::~png_writer_t() {
-}
+png_writer_t::~png_writer_t() {}
 
 /**************************************************************************************************/
 
@@ -248,17 +246,14 @@ void png_writer_t::write_thunk(png_structp png, png_bytep buffer, png_size_t siz
 
 /**************************************************************************************************/
 
-void png_writer_t::write(const image_t& image,
-                         const write_options_t& options) {
+void png_writer_t::write(const image_t& image, const write_options_t& options) {
     if (!_output)
         png_error(nullptr, "file could not be opened for write");
 
     bufferstream_t stream;
 
-    png_structp png_struct = png_create_write_struct(PNG_LIBPNG_VER_STRING,
-                                                     nullptr,
-                                                     &png_writer_t::fail,
-                                                     &png_writer_t::warn);
+    png_structp png_struct = png_create_write_struct(
+        PNG_LIBPNG_VER_STRING, nullptr, &png_writer_t::fail, &png_writer_t::warn);
 
     if (!png_struct)
         png_error(png_struct, "png_create_write_struct failed");
@@ -268,10 +263,7 @@ void png_writer_t::write(const image_t& image,
     if (!png_info)
         png_error(png_struct, "png_create_info_struct failed");
 
-    png_set_write_fn(png_struct,
-                     &stream,
-                     &png_writer_t::write_thunk,
-                     &png_writer_t::flush_thunk);
+    png_set_write_fn(png_struct, &stream, &png_writer_t::write_thunk, &png_writer_t::flush_thunk);
 
     png_set_compression_buffer_size(png_struct, 1024 * 1024); // 1MB compression buffer
 
@@ -285,21 +277,23 @@ void png_writer_t::write(const image_t& image,
     png_set_packing(png_struct);
     png_set_benign_errors(png_struct, 1);
 
-    png_set_IHDR(png_struct, png_info,
-                 image.width(), image.height(), image.depth(),
+    png_set_IHDR(png_struct,
+                 png_info,
+                 image.width(),
+                 image.height(),
+                 image.depth(),
                  image.color_type(),
                  false, // interlacing
                  PNG_COMPRESSION_TYPE_DEFAULT,
                  PNG_FILTER_TYPE_DEFAULT);
 
     const auto&            color_table(image.get_color_table());
-    std::vector<png_byte*> rows(buffer_rows(const_cast<png_byte*>(image.data()), image.height(), image.rowbytes()));
+    std::vector<png_byte*> rows(
+        buffer_rows(const_cast<png_byte*>(image.data()), image.height(), image.rowbytes()));
 
     if (!color_table.empty()) {
-        png_set_PLTE(png_struct,
-                     png_info,
-                     color_table.data(),
-                     static_cast<int>(color_table.size()));
+        png_set_PLTE(
+            png_struct, png_info, color_table.data(), static_cast<int>(color_table.size()));
     }
 
     png_write_info(png_struct, png_info);
@@ -331,9 +325,7 @@ image_t read_png(const std::string& path) {
 
 /**************************************************************************************************/
 
-void write_png(const image_t&         image,
-               const std::string&     path,
-               const write_options_t& options) {
+void write_png(const image_t& image, const std::string& path, const write_options_t& options) {
     png_writer_t writer(path);
 
     writer.write(image, options);

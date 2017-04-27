@@ -34,9 +34,13 @@ class image_t {
 public:
     image_t() = default;
 
-    image_t(std::size_t width, std::size_t height, std::size_t depth, std::size_t rowbytes, int color_type)
-        : _width(width), _height(height), _depth(depth), _rowbytes(rowbytes), _color_type(color_type),
-          _buffer(rowbytes * _height) {}
+    image_t(std::size_t width,
+            std::size_t height,
+            std::size_t depth,
+            std::size_t rowbytes,
+            int         color_type)
+        : _width(width), _height(height), _depth(depth), _rowbytes(rowbytes),
+          _color_type(color_type), _buffer(rowbytes * _height) {}
 
     std::uint8_t* data() {
         return _buffer.data();

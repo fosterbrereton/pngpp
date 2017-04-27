@@ -27,11 +27,7 @@ image_t read_png(const std::string& path);
 
 /**************************************************************************************************/
 
-enum class write_mode {
-    one,
-    mid,
-    max
-};
+enum class write_mode { one, mid, max };
 
 struct write_options_t {
     write_mode _mode{write_mode::one};
@@ -40,9 +36,7 @@ struct write_options_t {
     int        _one_png_filter{PNG_ALL_FILTERS};
 };
 
-void write_png(const image_t&         image,
-               const std::string&     path,
-               const write_options_t& options);
+void write_png(const image_t& image, const std::string& path, const write_options_t& options);
 
 /**************************************************************************************************/
 

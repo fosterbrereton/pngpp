@@ -35,8 +35,7 @@ public:
 
     buffer_t() : _capacity(0) {}
 
-    explicit buffer_t(std::size_t size)
-        : _buffer(std::malloc(size)), _capacity(size) {}
+    explicit buffer_t(std::size_t size) : _buffer(std::malloc(size)), _capacity(size) {}
 
     buffer_t(const buffer_t& rhs) : buffer_t(rhs._capacity) {
         if (_capacity)
@@ -44,8 +43,7 @@ public:
     }
 
     buffer_t(buffer_t&& rhs)
-        : _buffer(std::move(rhs._buffer)),
-          _capacity(std::move(rhs._capacity)) {
+        : _buffer(std::move(rhs._buffer)), _capacity(std::move(rhs._capacity)) {
         rhs._capacity = 0;
     }
 

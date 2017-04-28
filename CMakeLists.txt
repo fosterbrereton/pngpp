@@ -1,7 +1,7 @@
 project (pngpp)
 cmake_minimum_required (VERSION 2.6)
 
-set(CMAKE_CXX_FLAGS "-g -Wall -std=c++14")
+set(CMAKE_CXX_FLAGS "-g -Wall -std=c++14 -stdlib=libc++")
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()

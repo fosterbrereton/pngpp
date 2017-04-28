@@ -168,7 +168,7 @@ image_t png_reader_t::read() {
 
         png_get_PLTE(_png_struct, _png_info, &table, &count);
 
-        result.set_color_table(std::vector<png_color>(&table[0], &table[count]));
+        result.set_color_table(color_table_t(&table[0], &table[count]));
     }
 
     return result;
@@ -178,6 +178,32 @@ image_t png_reader_t::read() {
 #if 0
 #pragma mark -
 #endif
+/**************************************************************************************************/
+
+struct one_options_t {
+    int _z_compression{Z_BEST_COMPRESSION};
+    int _z_strategy{Z_FILTERED};
+    int _png_filter{PNG_ALL_FILTERS};
+};
+
+struct image_params_t {
+    std::size_t            _width{0};
+    std::size_t            _height{0};
+    std::size_t            _depth{0};
+    std::size_t            _rowbytes{0};
+    std::size_t            _color_type{0};
+    const color_table_t&   _color_table;
+    std::vector<png_byte*> _rows;
+
+    explicit image_params_t(const image_t& image);
+};
+
+image_params_t::image_params_t(const image_t& image)
+    : _width(image.width()), _height(image.height()), _depth(image.depth()),
+      _rowbytes(image.rowbytes()), _color_type(image.color_type()),
+      _color_table(image.color_table()),
+      _rows(buffer_rows(const_cast<png_byte*>(image.data()), _height, _rowbytes)) {}
+
 /**************************************************************************************************/
 
 class png_writer_t {
@@ -195,6 +221,7 @@ public:
     ~png_writer_t();
 
     void write(const image_t& image, const write_options_t& options);
+    bufferstream_t write_one(const image_params_t& image, const one_options_t& options);
 };
 
 /**************************************************************************************************/
@@ -246,10 +273,7 @@ void png_writer_t::write_thunk(png_structp png, png_bytep buffer, png_size_t siz
 
 /**************************************************************************************************/
 
-void png_writer_t::write(const image_t& image, const write_options_t& options) {
-    if (!_output)
-        png_error(nullptr, "file could not be opened for write");
-
+bufferstream_t png_writer_t::write_one(const image_params_t& image, const one_options_t& options) {
     bufferstream_t stream;
 
     png_structp png_struct = png_create_write_struct(
@@ -266,45 +290,137 @@ void png_writer_t::write(const image_t& image, const write_options_t& options) {
     png_set_write_fn(png_struct, &stream, &png_writer_t::write_thunk, &png_writer_t::flush_thunk);
 
     png_set_compression_buffer_size(png_struct, 1024 * 1024); // 1MB compression buffer
-
-    png_set_compression_level(png_struct, options._one_z_compression);
+    png_set_compression_level(png_struct, options._z_compression);
     png_set_compression_mem_level(png_struct, MAX_MEM_LEVEL);
-    png_set_compression_strategy(png_struct, options._one_z_strategy);
+    png_set_compression_strategy(png_struct, options._z_strategy);
     png_set_compression_window_bits(png_struct, 15);
     png_set_compression_method(png_struct, Z_DEFLATED);
 
-    png_set_filter(png_struct, 0, options._one_png_filter);
+    png_set_filter(png_struct, PNG_FILTER_TYPE_DEFAULT, options._png_filter);
     png_set_packing(png_struct);
     png_set_benign_errors(png_struct, 1);
 
     png_set_IHDR(png_struct,
                  png_info,
-                 image.width(),
-                 image.height(),
-                 image.depth(),
-                 image.color_type(),
+                 image._width,
+                 image._height,
+                 image._depth,
+                 image._color_type,
                  false, // interlacing
                  PNG_COMPRESSION_TYPE_DEFAULT,
                  PNG_FILTER_TYPE_DEFAULT);
 
-    const auto&            color_table(image.get_color_table());
-    std::vector<png_byte*> rows(
-        buffer_rows(const_cast<png_byte*>(image.data()), image.height(), image.rowbytes()));
-
-    if (!color_table.empty()) {
-        png_set_PLTE(
-            png_struct, png_info, color_table.data(), static_cast<int>(color_table.size()));
+    if (!image._color_table.empty()) {
+        png_set_PLTE(png_struct,
+                     png_info,
+                     image._color_table.data(),
+                     static_cast<int>(image._color_table.size()));
     }
 
     png_write_info(png_struct, png_info);
 
-    png_write_image(png_struct, const_cast<png_bytepp>(rows.data()));
+    png_write_image(png_struct, const_cast<png_bytepp>(image._rows.data()));
 
     png_write_end(png_struct, png_info);
 
     png_destroy_write_struct(&png_struct, &png_info);
 
-    _output.write(reinterpret_cast<const char*>(stream.data()), stream.size());
+    return stream;
+}
+
+/**************************************************************************************************/
+
+auto mid_options_init() {
+    std::vector<one_options_t> result;
+
+    result.push_back(one_options_t{0, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE});
+    result.push_back(one_options_t{4, Z_HUFFMAN_ONLY, PNG_ALL_FILTERS});
+    result.push_back(one_options_t{6, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE});
+    result.push_back(one_options_t{6, Z_DEFAULT_STRATEGY, PNG_FILTER_SUB});
+    result.push_back(one_options_t{6, Z_FILTERED, PNG_ALL_FILTERS});
+    result.push_back(one_options_t{9, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE});
+    result.push_back(one_options_t{9, Z_DEFAULT_STRATEGY, PNG_FILTER_SUB});
+    result.push_back(one_options_t{9, Z_DEFAULT_STRATEGY, PNG_ALL_FILTERS});
+    result.push_back(one_options_t{9, Z_FILTERED, PNG_FILTER_NONE});
+    result.push_back(one_options_t{9, Z_FILTERED, PNG_FILTER_SUB});
+    result.push_back(one_options_t{9, Z_FILTERED, PNG_ALL_FILTERS});
+
+    return result;
+}
+
+/**************************************************************************************************/
+
+const auto& mid_options() {
+    static std::vector<one_options_t> mid_set(mid_options_init());
+
+    return mid_set;
+}
+
+/**************************************************************************************************/
+
+auto max_options_init() {
+    std::vector<one_options_t> result;
+
+    for (auto compression(Z_NO_COMPRESSION); compression <= Z_BEST_COMPRESSION; ++compression) {
+        for (auto strategy(Z_DEFAULT_STRATEGY); strategy <= Z_FIXED; ++strategy) {
+            for (const auto& filter : {PNG_FILTER_NONE,
+                                       PNG_FILTER_SUB,
+                                       PNG_FILTER_UP,
+                                       PNG_FILTER_AVG,
+                                       PNG_FILTER_PAETH}) {
+                result.push_back(one_options_t{compression, strategy, filter});
+            }
+        }
+    }
+
+    return result;
+}
+
+/**************************************************************************************************/
+
+const auto& max_options() {
+    static std::vector<one_options_t> max_set(max_options_init());
+
+    return max_set;
+}
+
+/**************************************************************************************************/
+
+void png_writer_t::write(const image_t& image, const write_options_t& options) {
+    if (!_output)
+        png_error(nullptr, "file could not be opened for write");
+
+    std::vector<one_options_t> solo(
+        1,
+        {
+            options._one_z_compression, options._one_z_strategy, options._one_png_filter,
+        });
+
+    const std::vector<one_options_t>& options_set =
+        options._mode == write_mode::one ?
+            solo :
+            options._mode == write_mode::mid ?
+            mid_options() :
+            options._mode == write_mode::max ? max_options() : std::vector<one_options_t>();
+
+    image_params_t image_params(image);
+    std::size_t    best_size{std::numeric_limits<std::size_t>::max()};
+    bufferstream_t best_stream;
+
+    for (const auto& options : options_set) {
+        bufferstream_t stream(write_one(image_params, options));
+
+        if (stream.size() >= best_size)
+            continue;
+
+        best_size   = stream.size();
+        best_stream = std::move(stream);
+    }
+
+    if (best_stream.empty())
+        throw std::runtime_error("Could not save PNG");
+
+    _output.write(reinterpret_cast<const char*>(best_stream.data()), best_stream.size());
 }
 
 /**************************************************************************************************/

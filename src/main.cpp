@@ -35,6 +35,10 @@ int main(int argc, char** argv) try {
 
     write_options_t options;
 
+    //options._mode = write_mode::one;
+    //options._mode = write_mode::mid;
+    options._mode = write_mode::max;
+
     write_png(image, output.string(), options);
 
     return 0;

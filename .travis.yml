@@ -1,62 +1,12 @@
 cache: 
   directories: 
     - $HOME/.conan
-dist: trusty
-matrix: 
-  include: 
-    - 
-      addons: 
-        apt: 
-          packages: 
-            - g++-5
-          sources: 
-            - ubuntu-toolchain-r-test
-      compiler: gcc
-      install: 
-        - "if [ \"$CXX\" = \"g++\" ]; then export COMPILER_NAME=gcc CXX=\"g++-5\" CC=\"gcc-5\"; fi"
-        - "pip install conan"
-        - "mkdir build"
-        - "cd build"
-        - "conan install .. --build=missing"
-      language: cpp
-      script: 
-        - "cmake .. && make"
-        - "cd bin"
-        - ./pngpp
-    - 
-      addons: 
-        apt: 
-          packages: 
-            - clang-3.8
-          sources: 
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.8
-      compiler: clang
-      install: 
-        - "if [ \"$CXX\" = \"g++\" ]; then export CXX=\"clang++-3.8\" CC=\"clang-3.8\"; fi"
-        - "pip install conan"
-        - "mkdir build"
-        - "cd build"
-        - "conan install .. --build=missing"
-      language: cpp
-      script: 
-        - "cmake .. && make"
-        - "cd bin"
-        - ./pngpp
-    - 
-      env: "COMPILER_NAME=clang CXX=clang++ CC=clang"
-      install: 
-        - "brew update"
-        - "brew install conan"
-        - ./setup_xcode.sh
-      language: generic
-      os: osx
-      osx_image: xcode8.3
-      script: 
-        - "cd build_debug"
-        - xcodebuild
-        - "cd bin"
-        - ./pngpp
+env: "COMPILER_NAME=clang CXX=clang++ CC=clang"
+install: 
+  - "brew update"
+  - "brew install conan"
+  - ./setup_xcode.sh
+language: generic
 notifications: 
   email: 
     on_failure: always
@@ -64,4 +14,10 @@ notifications:
   recipients: 
     secure: 
       secure: qf3Waf0Xsnq1qhK5m+NXKkIN2V6xRIptHyYr6xif5N8kOrR+Dhokmk/2Kh8jVFyXE4TxsK7AutPryK93byag+YF079ZWdiJDP+wxZRw0MwOUaOAK1K7X5yAOeRGYQse5jHS7MvYfD9udVP6eYsF/A1V0J808ZgSD4PZ0n7XepLEOo7K6SZ9sUTNCaNKM6GZ+8O+4Lqk5F4jlHMNVR98qSk/lFtsIjX5D8+7RzYDdH7ctMW0RQyZsb1xbewfE8pVmg3ghNbfShs11JPQfkwJL/qQysb9QruqALJAUM2s65eRYXH6vk+uYUiX0UHB8+oCA702Eo5jtgET6eatp0TOakn/LWq0lRQfpbs8/KxZolttAwROq0yQV6/LhwYNcFK4fkM8k5XVljjLqlNbYT0Xu3fMh7jQAfYkNrq/50SOETgecUlpCEp5K3PBTlAvWmu5SAnG13GCPaDP7AI08ERxs3n6DVucaM6HcFRcjumFLva4X39+Qko31ixnMWzVhGVonjMrPqMYmVcPBLQE3qVsnxCp0/bfoGDpHYVGxGnc/9LAck5lw00kkkE06H3m1WubYt12E6hcepAVutA10g4Y6LJ0p380mhDCet3Hb4eW2aq9FWhUbwpRpn4W4tihCm7OXxSYqQjVyxyvKjXaE+aSEnNzr65nj/R4rOS716Br3pdw=
-sudo: required
+os: osx
+osx_image: xcode8.3
+script: 
+  - "cd build_debug"
+  - xcodebuild
+  - "cd bin"
+  - ./pngpp

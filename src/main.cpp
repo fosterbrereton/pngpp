@@ -222,7 +222,7 @@ void palette_optimizations(const image_t& image, const path_t& output) {
 
     indexed_histogram_table_t hist_table(make_indexed_histogram_table(image));
 
-    std::sort(hist_table.begin(), hist_table.end(), [&_image = image](auto& x, auto& y) {
+    std::sort(hist_table.begin(), hist_table.end(), [& _image = image](auto& x, auto& y) {
         if (x.first < y.first) {
             return true;
         } else if (y.first < x.first) {
@@ -243,17 +243,16 @@ void palette_optimizations(const image_t& image, const path_t& output) {
     indexed_histogram_table_t best_table;
     std::size_t               best_size{std::numeric_limits<std::size_t>::max()};
 
-    auto save_and_best(
-        [&_image = image, &_best_size = best_size, &_best_table = best_table ](
-            const indexed_histogram_table_t& table, const path_t& path) {
-            std::size_t size = verbose_save(reindex_image(_image, table), path);
+    auto save_and_best([& _image = image, &_best_size = best_size, &_best_table = best_table ](
+        const indexed_histogram_table_t& table, const path_t& path) {
+        std::size_t size = verbose_save(reindex_image(_image, table), path);
 
-            if (size >= _best_size)
-                return;
+        if (size >= _best_size)
+            return;
 
-            _best_size  = size;
-            _best_table = table;
-        });
+        _best_size  = size;
+        _best_table = table;
+    });
 
     save_and_best(hist_table, derived_filename(output, "sorted"));
 

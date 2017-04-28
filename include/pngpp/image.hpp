@@ -53,6 +53,20 @@ public:
         return _buffer.data();
     }
 
+    auto begin() {
+        return _buffer.begin();
+    }
+    auto begin() const {
+        return _buffer.begin();
+    }
+
+    auto end() {
+        return _buffer.end();
+    }
+    auto end() const {
+        return _buffer.end();
+    }
+
     auto width() const {
         return _width;
     }

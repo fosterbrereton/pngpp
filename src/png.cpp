@@ -48,7 +48,7 @@ class png_reader_t {
     static void warn(png_structp, png_const_charp);
 
 public:
-    explicit png_reader_t(const std::string& path);
+    explicit png_reader_t(const path_t& path);
     ~png_reader_t();
 
     image_t read();
@@ -58,8 +58,8 @@ public:
 
 /**************************************************************************************************/
 
-png_reader_t::png_reader_t(const std::string& path)
-    : _input(path.c_str(), std::ios_base::in | std::ios_base::binary),
+png_reader_t::png_reader_t(const path_t& path)
+    : _input(path.string().c_str(), std::ios_base::in | std::ios_base::binary),
       _png_struct(png_create_read_struct(
           PNG_LIBPNG_VER_STRING, nullptr, &png_reader_t::fail, &png_reader_t::warn)),
       _png_info(png_create_info_struct(_png_struct)),
@@ -206,36 +206,35 @@ image_params_t::image_params_t(const image_t& image)
 
 /**************************************************************************************************/
 
-class png_writer_t {
+class png_saver_t {
     std::ofstream _output;
 
     static void flush_thunk(png_structp png) {}
     static void write_thunk(png_structp png, png_bytep buffer, png_size_t size);
-    void write(png_bytep buffer, png_size_t size);
 
     static void fail(png_structp, png_const_charp);
     static void warn(png_structp, png_const_charp);
 
 public:
-    explicit png_writer_t(const std::string& path);
-    ~png_writer_t();
+    explicit png_saver_t(const path_t& path);
+    ~png_saver_t();
 
-    void write(const image_t& image, const write_options_t& options);
+    std::size_t save(const image_t& image, const save_options_t& options);
     static bufferstream_t write_one(const image_params_t& image, const one_options_t& options);
 };
 
 /**************************************************************************************************/
 
-png_writer_t::png_writer_t(const std::string& path)
-    : _output(path.c_str(), std::ios_base::out | std::ios_base::binary) {}
+png_saver_t::png_saver_t(const path_t& path)
+    : _output(path.string().c_str(), std::ios_base::out | std::ios_base::binary) {}
 
 /**************************************************************************************************/
 
-png_writer_t::~png_writer_t() {}
+png_saver_t::~png_saver_t() {}
 
 /**************************************************************************************************/
 
-void png_writer_t::fail(png_structp, png_const_charp message) {
+void png_saver_t::fail(png_structp, png_const_charp message) {
 #ifndef NDEBUG
     std::cerr << message << '\n';
 #endif
@@ -245,7 +244,7 @@ void png_writer_t::fail(png_structp, png_const_charp message) {
 
 /**************************************************************************************************/
 
-void png_writer_t::warn(png_structp, png_const_charp message) {
+void png_saver_t::warn(png_structp, png_const_charp message) {
 #ifndef NDEBUG
     std::cerr << message << '\n';
 #endif
@@ -253,31 +252,25 @@ void png_writer_t::warn(png_structp, png_const_charp message) {
 
 /**************************************************************************************************/
 
-void png_writer_t::write(png_bytep buffer, png_size_t size) {
-    _output.write(reinterpret_cast<char*>(buffer), size);
-}
-
-/**************************************************************************************************/
-
-void png_writer_t::write_thunk(png_structp png, png_bytep buffer, png_size_t size) {
+void png_saver_t::write_thunk(png_structp png, png_bytep buffer, png_size_t size) {
     if (!png || !buffer)
         png_error(png, "invalid pointer");
 
-    bufferstream_t* writer(static_cast<bufferstream_t*>(png_get_io_ptr(png)));
+    bufferstream_t* saver(static_cast<bufferstream_t*>(png_get_io_ptr(png)));
 
-    if (!writer)
+    if (!saver)
         png_error(png, "invalid pointer");
 
-    writer->write(buffer, size);
+    saver->write(buffer, size);
 }
 
 /**************************************************************************************************/
 
-bufferstream_t png_writer_t::write_one(const image_params_t& image, const one_options_t& options) {
+bufferstream_t png_saver_t::write_one(const image_params_t& image, const one_options_t& options) {
     bufferstream_t stream;
 
     png_structp png_struct = png_create_write_struct(
-        PNG_LIBPNG_VER_STRING, nullptr, &png_writer_t::fail, &png_writer_t::warn);
+        PNG_LIBPNG_VER_STRING, nullptr, &png_saver_t::fail, &png_saver_t::warn);
 
     if (!png_struct)
         png_error(png_struct, "png_create_write_struct failed");
@@ -287,7 +280,7 @@ bufferstream_t png_writer_t::write_one(const image_params_t& image, const one_op
     if (!png_info)
         png_error(png_struct, "png_create_info_struct failed");
 
-    png_set_write_fn(png_struct, &stream, &png_writer_t::write_thunk, &png_writer_t::flush_thunk);
+    png_set_write_fn(png_struct, &stream, &png_saver_t::write_thunk, &png_saver_t::flush_thunk);
 
     png_set_compression_buffer_size(png_struct, 1024 * 1024); // 1MB compression buffer
     png_set_compression_level(png_struct, options._z_compression);
@@ -330,30 +323,20 @@ bufferstream_t png_writer_t::write_one(const image_params_t& image, const one_op
 
 /**************************************************************************************************/
 
-auto mid_options_init() {
-    std::vector<one_options_t> result;
-
-    result.push_back(one_options_t{0, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE});
-    result.push_back(one_options_t{4, Z_HUFFMAN_ONLY, PNG_ALL_FILTERS});
-    result.push_back(one_options_t{6, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE});
-    result.push_back(one_options_t{6, Z_DEFAULT_STRATEGY, PNG_FILTER_SUB});
-    result.push_back(one_options_t{6, Z_FILTERED, PNG_ALL_FILTERS});
-    result.push_back(one_options_t{9, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE});
-    result.push_back(one_options_t{9, Z_DEFAULT_STRATEGY, PNG_FILTER_SUB});
-    result.push_back(one_options_t{9, Z_DEFAULT_STRATEGY, PNG_ALL_FILTERS});
-    result.push_back(one_options_t{9, Z_FILTERED, PNG_FILTER_NONE});
-    result.push_back(one_options_t{9, Z_FILTERED, PNG_FILTER_SUB});
-    result.push_back(one_options_t{9, Z_FILTERED, PNG_ALL_FILTERS});
-
-    return result;
-}
-
-/**************************************************************************************************/
-
 const auto& mid_options() {
-    static std::vector<one_options_t> mid_set(mid_options_init());
+    static std::vector<one_options_t> value_s{{0, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE},
+                                              {4, Z_HUFFMAN_ONLY, PNG_ALL_FILTERS},
+                                              {6, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE},
+                                              {6, Z_DEFAULT_STRATEGY, PNG_FILTER_SUB},
+                                              {6, Z_FILTERED, PNG_ALL_FILTERS},
+                                              {9, Z_DEFAULT_STRATEGY, PNG_FILTER_NONE},
+                                              {9, Z_DEFAULT_STRATEGY, PNG_FILTER_SUB},
+                                              {9, Z_DEFAULT_STRATEGY, PNG_ALL_FILTERS},
+                                              {9, Z_FILTERED, PNG_FILTER_NONE},
+                                              {9, Z_FILTERED, PNG_FILTER_SUB},
+                                              {9, Z_FILTERED, PNG_ALL_FILTERS}};
 
-    return mid_set;
+    return value_s;
 }
 
 /**************************************************************************************************/
@@ -379,16 +362,16 @@ auto max_options_init() {
 /**************************************************************************************************/
 
 const auto& max_options() {
-    static std::vector<one_options_t> max_set(max_options_init());
+    static std::vector<one_options_t> value_s(max_options_init());
 
-    return max_set;
+    return value_s;
 }
 
 /**************************************************************************************************/
 
-void png_writer_t::write(const image_t& image, const write_options_t& options) {
+std::size_t png_saver_t::save(const image_t& image, const save_options_t& options) {
     if (!_output)
-        png_error(nullptr, "file could not be opened for write");
+        png_error(nullptr, "file could not be opened for save");
 
     std::vector<one_options_t> solo(
         1,
@@ -397,11 +380,11 @@ void png_writer_t::write(const image_t& image, const write_options_t& options) {
         });
 
     const std::vector<one_options_t>& options_set =
-        options._mode == write_mode::one ?
+        options._mode == save_mode::one ?
             solo :
-            options._mode == write_mode::mid ?
+            options._mode == save_mode::mid ?
             mid_options() :
-            options._mode == write_mode::max ? max_options() : std::vector<one_options_t>();
+            options._mode == save_mode::max ? max_options() : std::vector<one_options_t>();
 
     image_params_t           image_params(image);
     std::atomic<std::size_t> best_size{std::numeric_limits<std::size_t>::max()};
@@ -430,6 +413,8 @@ void png_writer_t::write(const image_t& image, const write_options_t& options) {
         throw std::runtime_error("Could not save PNG");
 
     _output.write(reinterpret_cast<const char*>(best_stream.data()), best_stream.size());
+
+    return best_stream.size();
 }
 
 /**************************************************************************************************/
@@ -442,7 +427,7 @@ namespace pngpp {
 
 /**************************************************************************************************/
 
-image_t read_png(const std::string& path) {
+image_t read_png(const path_t& path) {
     png_reader_t reader(path);
 
     return reader.read();
@@ -450,10 +435,10 @@ image_t read_png(const std::string& path) {
 
 /**************************************************************************************************/
 
-void write_png(const image_t& image, const std::string& path, const write_options_t& options) {
-    png_writer_t writer(path);
+std::size_t save_png(const image_t& image, const path_t& path, const save_options_t& options) {
+    png_saver_t saver(path);
 
-    writer.write(image, options);
+    return saver.save(image, options);
 }
 
 /**************************************************************************************************/

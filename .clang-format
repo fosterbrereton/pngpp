@@ -53,7 +53,7 @@ Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
-# FixNamespaceComments: true # available in a future version of clang-format
+FixNamespaceComments: true
 ForEachMacros:   [ foreach, Q_FOREACH, BOOST_FOREACH ]
 IncludeCategories: 
   - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'

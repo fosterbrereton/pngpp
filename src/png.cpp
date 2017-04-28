@@ -9,8 +9,8 @@
 #include <iostream>
 #include <vector>
 
-// application
-// #include <pngpp/files.hpp>
+// tbb
+#include <tbb/parallel_for_each.h>
 
 /**************************************************************************************************/
 
@@ -221,7 +221,7 @@ public:
     ~png_writer_t();
 
     void write(const image_t& image, const write_options_t& options);
-    bufferstream_t write_one(const image_params_t& image, const one_options_t& options);
+    static bufferstream_t write_one(const image_params_t& image, const one_options_t& options);
 };
 
 /**************************************************************************************************/
@@ -403,19 +403,28 @@ void png_writer_t::write(const image_t& image, const write_options_t& options) {
             mid_options() :
             options._mode == write_mode::max ? max_options() : std::vector<one_options_t>();
 
-    image_params_t image_params(image);
-    std::size_t    best_size{std::numeric_limits<std::size_t>::max()};
-    bufferstream_t best_stream;
+    image_params_t           image_params(image);
+    std::atomic<std::size_t> best_size{std::numeric_limits<std::size_t>::max()};
+    bufferstream_t           best_stream;
+    std::mutex               mutex;
 
-    for (const auto& options : options_set) {
-        bufferstream_t stream(write_one(image_params, options));
+    tbb::parallel_for_each(options_set,
+                           [&image_params, &best_size, &best_stream, &mutex](const auto& options) {
+                               bufferstream_t stream(write_one(image_params, options));
 
-        if (stream.size() >= best_size)
-            continue;
+                               // check before we lock to make sure locking is necessary.
+                               if (stream.size() >= best_size)
+                                   return;
 
-        best_size   = stream.size();
-        best_stream = std::move(stream);
-    }
+                               std::lock_guard<std::mutex> lock(mutex);
+
+                               // check again now that we've got the lock.
+                               if (stream.size() >= best_size)
+                                   return;
+
+                               best_size   = stream.size();
+                               best_stream = std::move(stream);
+                           });
 
     if (best_stream.empty())
         throw std::runtime_error("Could not save PNG");

@@ -243,7 +243,7 @@ void palette_optimizations(const image_t& image, const path_t& output) {
     indexed_histogram_table_t best_table;
     std::size_t               best_size{std::numeric_limits<std::size_t>::max()};
 
-    auto save_and_best([& _image = image, &_best_size = best_size, &_best_table = best_table ](
+    auto save_and_best([& _image = image, &_best_size = best_size, &_best_table = best_table](
         const indexed_histogram_table_t& table, const path_t& path) {
         std::size_t size = verbose_save(reindex_image(_image, table), path);
 

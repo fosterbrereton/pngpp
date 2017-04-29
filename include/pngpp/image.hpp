@@ -52,14 +52,12 @@ public:
     auto data() const {
         return _buffer.data();
     }
-
     auto begin() {
         return _buffer.begin();
     }
     auto begin() const {
         return _buffer.begin();
     }
-
     auto end() {
         return _buffer.end();
     }
@@ -84,6 +82,10 @@ public:
     }
     const auto& color_table() const {
         return _color_table;
+    }
+
+    auto bpp() const {
+        return rowbytes() / width();
     }
 
     void set_color_table(color_table_t color_table) {

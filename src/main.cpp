@@ -5,6 +5,7 @@
 // stdc++
 #include <iostream>
 #include <numeric>
+#include <random>
 
 // tbb
 #include <tbb/parallel_for_each.h>
@@ -50,10 +51,12 @@ path_t derived_filename(path_t src, const std::string& new_leaf) {
 /**************************************************************************************************/
 
 void extract_color_table(const image_t& image, const path_t& output) {
-    const auto& color_table(image.color_table());
+    color_table_t color_table(image.color_table());
 
     if (color_table.empty())
         return;
+
+    color_table.resize(PNG_MAX_PALETTE_LENGTH);
 
     constexpr std::size_t swatch_size_k(32);
     const std::size_t     width(16 * swatch_size_k);
@@ -100,15 +103,11 @@ std::size_t verbose_save(const image_t& image,
 
 typedef std::vector<std::size_t> indexed_histogram_t;
 
-indexed_histogram_t histogram(const image_t& image) {
-    indexed_histogram_t result;
+indexed_histogram_t indexed_histogram(const image_t& image) {
+    indexed_histogram_t result(PNG_MAX_PALETTE_LENGTH, 0);
 
-    if (image.color_type() == PNG_COLOR_TYPE_PALETTE) {
-        result.resize(PNG_MAX_PALETTE_LENGTH, 0);
-
-        for (auto entry : image)
-            ++result[entry];
-    }
+    for (auto entry : image)
+        ++result[entry];
 
     return result;
 }
@@ -119,16 +118,12 @@ typedef std::pair<std::size_t, std::uint8_t> indexed_histogram_pair_t;
 typedef std::vector<indexed_histogram_pair_t> indexed_histogram_table_t;
 
 indexed_histogram_table_t make_indexed_histogram_table(const image_t& image) {
-    indexed_histogram_table_t result;
+    std::size_t               count(image.color_table().size());
+    indexed_histogram_table_t result(count);
+    indexed_histogram_t       image_hist(indexed_histogram(image));
 
-    if (image.color_type() == PNG_COLOR_TYPE_PALETTE) {
-        result.resize(PNG_MAX_PALETTE_LENGTH);
-
-        indexed_histogram_t image_hist(histogram(image));
-
-        for (std::size_t i(0); i < PNG_MAX_PALETTE_LENGTH; ++i) {
-            result[i] = indexed_histogram_pair_t(image_hist[i], i);
-        }
+    for (std::size_t i(0); i < count; ++i) {
+        result[i] = indexed_histogram_pair_t(image_hist[i], i);
     }
 
     return result;
@@ -138,18 +133,7 @@ indexed_histogram_table_t make_indexed_histogram_table(const image_t& image) {
 
 typedef std::vector<std::uint8_t> index_map_t;
 
-index_map_t identity_index_map() {
-    index_map_t result(PNG_MAX_PALETTE_LENGTH, 0);
-
-    std::iota(result.begin(), result.end(), 0);
-
-    return result;
-}
-
 image_t reindex_image(const image_t& image, const index_map_t& map) {
-    if (image.color_type() != PNG_COLOR_TYPE_PALETTE)
-        return image;
-
     image_t result(image);
 
     for (auto& entry : result)
@@ -157,8 +141,9 @@ image_t reindex_image(const image_t& image, const index_map_t& map) {
 
     const auto&   src_table(image.color_table());
     color_table_t dst_table(src_table);
+    std::size_t   count(image.color_table().size());
 
-    for (std::size_t i(0); i < PNG_MAX_PALETTE_LENGTH; ++i)
+    for (std::size_t i(0); i < count; ++i)
         dst_table[map[i]] = src_table[i];
 
     result.set_color_table(dst_table);
@@ -167,12 +152,10 @@ image_t reindex_image(const image_t& image, const index_map_t& map) {
 }
 
 image_t reindex_image(const image_t& image, const indexed_histogram_table_t& table) {
-    if (image.color_type() != PNG_COLOR_TYPE_PALETTE)
-        return image;
+    std::size_t count(image.color_table().size());
+    index_map_t sorted_map(count);
 
-    index_map_t sorted_map(PNG_MAX_PALETTE_LENGTH);
-
-    for (std::size_t i(0); i < PNG_MAX_PALETTE_LENGTH; ++i) {
+    for (std::size_t i(0); i < count; ++i) {
         sorted_map[table[i].second] = i;
     }
 
@@ -192,15 +175,15 @@ inline double grey(const png_color& c) {
 /**************************************************************************************************/
 
 inline bool operator<(const png_color& x, const png_color& y) {
-    if (x.green < y.green) {
-        return true;
-    } else if (y.green < x.green) {
-        return false;
-    }
-
     if (x.red < y.red) {
         return true;
     } else if (y.red < x.red) {
+        return false;
+    }
+
+    if (x.green < y.green) {
+        return true;
+    } else if (y.green < x.green) {
         return false;
     }
 
@@ -209,9 +192,234 @@ inline bool operator<(const png_color& x, const png_color& y) {
 
 /**************************************************************************************************/
 
-void truecolor_optimizations(const image_t& image, const path_t& output) {
-    if (image.color_type() == PNG_COLOR_TYPE_PALETTE)
-        return;
+struct rgba {
+    std::uint16_t _r;
+    std::uint16_t _g;
+    std::uint16_t _b;
+    std::uint16_t _a;
+};
+
+inline bool operator<(const rgba& x, const rgba& y) {
+    if (x._r < y._r) {
+        return true;
+    } else if (y._r < x._r) {
+        return false;
+    }
+
+    if (x._g < y._g) {
+        return true;
+    } else if (y._g < x._g) {
+        return false;
+    }
+
+    if (x._b < y._b) {
+        return true;
+    } else if (y._b < x._b) {
+        return false;
+    }
+
+    return x._a < y._a;
+}
+
+/**************************************************************************************************/
+
+typedef std::map<rgba, std::size_t> true_histogram_t;
+
+true_histogram_t true_histogram(const image_t& image) {
+    true_histogram_t result;
+    auto             bpp(image.bpp());
+    auto             p(image.begin());
+    auto             last(image.end());
+
+    if (bpp == 3) {
+        while (p != last) {
+            rgba rgb{
+                *p++,
+                *p++,
+                *p++,
+                0,
+            };
+
+            ++result[rgb];
+        }
+    } else if (bpp == 4) {
+        while (p != last) {
+            rgba rgb{
+                *p++,
+                *p++,
+                *p++,
+                *p++,
+            };
+
+            ++result[rgb];
+        }
+    }
+
+    return result;
+}
+
+/**************************************************************************************************/
+
+inline auto sq_distance(std::int64_t x, std::int64_t y) {
+    std::int64_t diff(x - y);
+
+    return diff * diff;
+}
+
+/**************************************************************************************************/
+
+inline auto sq_distance(const rgba& x, const rgba& y) {
+    return sq_distance(x._r, y._r) +
+           sq_distance(x._g, y._g) +
+           sq_distance(x._b, y._b) +
+           sq_distance(x._a, y._a);
+}
+
+/**************************************************************************************************/
+
+inline auto sq_distance(const png_color& x, const rgba& y) {
+    return sq_distance(x.red, y._r) +
+           sq_distance(x.green, y._g) +
+           sq_distance(x.blue, y._b) +
+           sq_distance(0, y._a);
+}
+
+/**************************************************************************************************/
+
+inline auto sq_distance(const rgba& x, const png_color& y) {
+    return sq_distance(y, x);
+}
+
+/**************************************************************************************************/
+
+auto euclidean_distance(const rgba& x, const rgba& y) {
+    return std::sqrt(sq_distance(x._r, y._r) +
+                     sq_distance(x._g, y._g) +
+                     sq_distance(x._b, y._b) +
+                     sq_distance(x._a, y._a));
+}
+
+/**************************************************************************************************/
+
+std::vector<std::int64_t> compute_d(const std::vector<rgba>& colors, const std::vector<rgba>& seeds) {
+    std::vector<std::int64_t> integral_values;
+    std::int64_t              integral_sum{0};
+
+    for (const auto& color : colors) {
+        std::int64_t d(std::numeric_limits<std::int64_t>::max());
+
+        for (const auto& seed : seeds) {
+            d = std::min(d, sq_distance(color, seed));
+        }
+
+        integral_sum += d;
+        integral_values.push_back(d);
+    }
+
+    return integral_values;
+}
+
+/**************************************************************************************************/
+
+std::vector<rgba> k_means_pp(const std::vector<rgba>& v, std::size_t n) {
+    std::random_device rd;
+    std::mt19937       gen(rd());
+    std::vector<rgba>  result;
+    std::size_t        i(std::rand() % v.size());
+
+    result.push_back(v[i]);
+
+    while (result.size() < n) {
+        auto                         d(compute_d(v, result));
+        std::discrete_distribution<> dist(d.begin(), d.end());
+        std::size_t                  index(dist(gen));
+
+        result.push_back(v[index]);
+    }
+
+    return result;
+}
+
+/**************************************************************************************************/
+
+color_table_t make_color_table(const std::vector<rgba>& v) {
+    std::size_t   count(std::min<std::size_t>(v.size(), PNG_MAX_PALETTE_LENGTH));
+    color_table_t result(count);
+
+    for (std::size_t i(0); i < count; ++i) {
+        result[i].red = v[i]._r;
+        result[i].green = v[i]._g;
+        result[i].blue = v[i]._b;
+    }
+
+    return result;
+}
+
+/**************************************************************************************************/
+
+std::pair<std::size_t, double> quantize(const rgba& c, const color_table_t& table) {
+    std::size_t  index{0};
+    std::int64_t min_error{std::numeric_limits<std::int64_t>::max()};
+    std::size_t  count(table.size());
+
+    for (std::size_t i(0); i < count; ++i) {
+        std::int64_t error(sq_distance(c, table[i]));
+
+        if (error >= min_error)
+            continue;
+
+        index = i;
+        min_error = error;
+    }
+
+    return std::make_pair(index, std::sqrt(min_error));
+}
+
+/**************************************************************************************************/
+
+inline auto quantize(const png_color& c, const color_table_t& table) {
+    return quantize(rgba{c.red, c.green, c.blue, 0}, table);
+}
+
+/**************************************************************************************************/
+
+image_t quantize(const image_t& image, const color_table_t& color_table) {
+    image_t result(image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
+    auto    bpp(image.bpp());
+    auto    p(image.begin());
+    auto    last(image.end());
+    auto    dst(result.begin());
+
+    if (bpp == 3) {
+        while (p != last) {
+            png_color color {
+                *p++,
+                *p++,
+                *p++,
+            };
+
+            auto q(quantize(color, color_table));
+
+            *dst++ = q.first;
+        }
+    } else if (bpp == 4) {
+        while (p != last) {
+            rgba color {
+                *p++,
+                *p++,
+                *p++,
+                *p++,
+            };
+
+            auto q(quantize(color, color_table));
+
+            *dst++ = q.first;
+        }
+    }
+
+    result.set_color_table(color_table);
+
+    return result;
 }
 
 /**************************************************************************************************/
@@ -259,6 +467,30 @@ void palette_optimizations(const image_t& image, const path_t& output) {
     std::reverse(hist_table.begin(), hist_table.end());
 
     save_and_best(hist_table, derived_filename(output, "sorted_reverse"));
+}
+
+/**************************************************************************************************/
+
+void truecolor_optimizations(const image_t& image, const path_t& output) {
+    if (image.color_type() == PNG_COLOR_TYPE_PALETTE)
+        return;
+
+    true_histogram_t  histogram(true_histogram(image));
+    std::vector<rgba> colors;
+
+    for (const auto& color : histogram)
+        colors.push_back(color.first);
+
+    for (const auto& table_size : {2, 4, 8, 16, 32, 64, 128, 256}) {
+        std::vector<rgba> seeds(k_means_pp(colors, table_size));
+        color_table_t     color_table(make_color_table(seeds));
+        image_t           quantized(quantize(image, color_table));
+        path_t            cur_output(derived_filename(output, std::to_string(table_size) + "_seed"));
+
+        verbose_save(quantized, cur_output);
+
+        palette_optimizations(quantized, cur_output);
+    }
 }
 
 /**************************************************************************************************/

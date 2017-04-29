@@ -22,6 +22,14 @@ namespace {
 
 /**************************************************************************************************/
 
+void squawk(const char* message) {
+#ifndef NDEBUG
+    std::cerr << message << '\n';
+#endif
+}
+
+/**************************************************************************************************/
+
 std::vector<png_byte*> buffer_rows(png_byte* p, std::size_t height, std::size_t rowbytes) {
     std::vector<png_byte*> result(height);
 
@@ -89,9 +97,7 @@ png_reader_t::~png_reader_t() {
 /**************************************************************************************************/
 
 void png_reader_t::fail(png_structp, png_const_charp message) {
-#ifndef NDEBUG
-    std::cerr << message << '\n';
-#endif
+    squawk(message);
 
     throw std::runtime_error(message);
 }
@@ -99,9 +105,7 @@ void png_reader_t::fail(png_structp, png_const_charp message) {
 /**************************************************************************************************/
 
 void png_reader_t::warn(png_structp, png_const_charp message) {
-#ifndef NDEBUG
-    std::cerr << message << '\n';
-#endif
+    squawk(message);
 }
 
 /**************************************************************************************************/
@@ -235,9 +239,7 @@ png_saver_t::~png_saver_t() {}
 /**************************************************************************************************/
 
 void png_saver_t::fail(png_structp, png_const_charp message) {
-#ifndef NDEBUG
-    std::cerr << message << '\n';
-#endif
+    squawk(message);
 
     throw std::runtime_error(message);
 }
@@ -245,9 +247,7 @@ void png_saver_t::fail(png_structp, png_const_charp message) {
 /**************************************************************************************************/
 
 void png_saver_t::warn(png_structp, png_const_charp message) {
-#ifndef NDEBUG
-    std::cerr << message << '\n';
-#endif
+    squawk(message);
 }
 
 /**************************************************************************************************/

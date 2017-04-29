@@ -105,6 +105,15 @@ public:
 
 /**************************************************************************************************/
 
+inline bool operator==(const buffer_t& x, const buffer_t& y) {
+    return x.size() == y.size() && std::equal(x.begin(), x.end(), y.begin());
+}
+inline bool operator!=(const buffer_t& x, const buffer_t& y) {
+    return !(x == y);
+}
+
+/**************************************************************************************************/
+
 class bufferstream_t {
     buffer_t    _buffer;
     std::size_t _pos{0};

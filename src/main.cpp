@@ -50,7 +50,7 @@ path_t derived_filename(path_t src, const std::string& new_leaf) {
 
 /**************************************************************************************************/
 
-void extract_color_table(const image_t& image, const path_t& output) {
+void dump_color_table(const image_t& image, const path_t& output) {
     color_table_t color_table(image.color_table());
 
     if (color_table.empty())
@@ -86,7 +86,7 @@ void extract_color_table(const image_t& image, const path_t& output) {
 std::size_t verbose_save(const image_t& image,
                          const path_t&  path,
                          save_mode      mode = save_mode::max) {
-    extract_color_table(image, path);
+    dump_color_table(image, path);
 
     save_options_t options;
 
@@ -174,29 +174,18 @@ inline double grey(const png_color& c) {
 
 /**************************************************************************************************/
 
-inline bool operator<(const png_color& x, const png_color& y) {
-    if (x.red < y.red) {
-        return true;
-    } else if (y.red < x.red) {
-        return false;
-    }
-
-    if (x.green < y.green) {
-        return true;
-    } else if (y.green < x.green) {
-        return false;
-    }
-
-    return x.blue < y.blue;
-}
-
-/**************************************************************************************************/
-
 struct rgba {
     std::uint16_t _r;
     std::uint16_t _g;
     std::uint16_t _b;
     std::uint16_t _a;
+};
+
+struct rgba64 {
+    std::uint64_t _r;
+    std::uint64_t _g;
+    std::uint64_t _b;
+    std::uint64_t _a;
 };
 
 inline bool operator<(const rgba& x, const rgba& y) {
@@ -234,10 +223,7 @@ true_histogram_t true_histogram(const image_t& image) {
     if (bpp == 3) {
         while (p != last) {
             rgba rgb{
-                *p++,
-                *p++,
-                *p++,
-                0,
+                *p++, *p++, *p++, 0,
             };
 
             ++result[rgb];
@@ -245,10 +231,7 @@ true_histogram_t true_histogram(const image_t& image) {
     } else if (bpp == 4) {
         while (p != last) {
             rgba rgb{
-                *p++,
-                *p++,
-                *p++,
-                *p++,
+                *p++, *p++, *p++, *p++,
             };
 
             ++result[rgb];
@@ -269,19 +252,15 @@ inline auto sq_distance(std::int64_t x, std::int64_t y) {
 /**************************************************************************************************/
 
 inline auto sq_distance(const rgba& x, const rgba& y) {
-    return sq_distance(x._r, y._r) +
-           sq_distance(x._g, y._g) +
-           sq_distance(x._b, y._b) +
+    return sq_distance(x._r, y._r) + sq_distance(x._g, y._g) + sq_distance(x._b, y._b) +
            sq_distance(x._a, y._a);
 }
 
 /**************************************************************************************************/
 
 inline auto sq_distance(const png_color& x, const rgba& y) {
-    return sq_distance(x.red, y._r) +
-           sq_distance(x.green, y._g) +
-           sq_distance(x.blue, y._b) +
-           sq_distance(0, y._a);
+    return sq_distance(x.red, y._r) + sq_distance(x.green, y._g) + sq_distance(x.blue, y._b) +
+           sq_distance(255, y._a);
 }
 
 /**************************************************************************************************/
@@ -293,15 +272,14 @@ inline auto sq_distance(const rgba& x, const png_color& y) {
 /**************************************************************************************************/
 
 auto euclidean_distance(const rgba& x, const rgba& y) {
-    return std::sqrt(sq_distance(x._r, y._r) +
-                     sq_distance(x._g, y._g) +
-                     sq_distance(x._b, y._b) +
+    return std::sqrt(sq_distance(x._r, y._r) + sq_distance(x._g, y._g) + sq_distance(x._b, y._b) +
                      sq_distance(x._a, y._a));
 }
 
 /**************************************************************************************************/
 
-std::vector<std::int64_t> compute_d(const std::vector<rgba>& colors, const std::vector<rgba>& seeds) {
+std::vector<std::int64_t> compute_d(const std::vector<rgba>& colors,
+                                    const std::vector<rgba>& seeds) {
     std::vector<std::int64_t> integral_values;
     std::int64_t              integral_sum{0};
 
@@ -347,9 +325,9 @@ color_table_t make_color_table(const std::vector<rgba>& v) {
     color_table_t result(count);
 
     for (std::size_t i(0); i < count; ++i) {
-        result[i].red = v[i]._r;
+        result[i].red   = v[i]._r;
         result[i].green = v[i]._g;
-        result[i].blue = v[i]._b;
+        result[i].blue  = v[i]._b;
     }
 
     return result;
@@ -368,7 +346,7 @@ std::pair<std::size_t, double> quantize(const rgba& c, const color_table_t& tabl
         if (error >= min_error)
             continue;
 
-        index = i;
+        index     = i;
         min_error = error;
     }
 
@@ -378,48 +356,60 @@ std::pair<std::size_t, double> quantize(const rgba& c, const color_table_t& tabl
 /**************************************************************************************************/
 
 inline auto quantize(const png_color& c, const color_table_t& table) {
-    return quantize(rgba{c.red, c.green, c.blue, 0}, table);
+    return quantize(rgba{c.red, c.green, c.blue, 255}, table);
 }
 
 /**************************************************************************************************/
 
-image_t quantize(const image_t& image, const color_table_t& color_table) {
-    image_t result(image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
-    auto    bpp(image.bpp());
-    auto    p(image.begin());
-    auto    last(image.end());
-    auto    dst(result.begin());
+typedef std::pair<image_t, image_t> quantization_t;
+
+quantization_t quantize(const image_t& image, const color_table_t& color_table) {
+    image_t result(
+        image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
+    image_t error_result(
+        image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
+    auto bpp(image.bpp());
+    auto p(image.begin());
+    auto last(image.end());
+    auto dst(result.begin());
+    auto err_dst(error_result.begin());
 
     if (bpp == 3) {
         while (p != last) {
-            png_color color {
-                *p++,
-                *p++,
-                *p++,
+            png_color color{
+                *p++, *p++, *p++,
             };
 
             auto q(quantize(color, color_table));
 
-            *dst++ = q.first;
+            *dst++     = q.first;
+            *err_dst++ = std::min<std::uint8_t>(std::lround(q.second), 255);
         }
     } else if (bpp == 4) {
         while (p != last) {
-            rgba color {
-                *p++,
-                *p++,
-                *p++,
-                *p++,
+            rgba color{
+                *p++, *p++, *p++, *p++,
             };
 
             auto q(quantize(color, color_table));
 
-            *dst++ = q.first;
+            *dst++     = q.first;
+            *err_dst++ = std::min<std::uint8_t>(std::lround(q.second), 255);
         }
     }
 
-    result.set_color_table(color_table);
+    color_table_t error_table(PNG_MAX_PALETTE_LENGTH);
 
-    return result;
+    for (std::size_t i(0); i < PNG_MAX_PALETTE_LENGTH; ++i) {
+        error_table[i].red   = i;
+        error_table[i].green = i;
+        error_table[i].blue  = i;
+    }
+
+    result.set_color_table(color_table);
+    error_result.set_color_table(error_table);
+
+    return std::make_pair(std::move(result), std::move(error_result));
 }
 
 /**************************************************************************************************/
@@ -471,6 +461,90 @@ void palette_optimizations(const image_t& image, const path_t& output) {
 
 /**************************************************************************************************/
 
+void dump_quantization(const quantization_t& q, const path_t& output) {
+    path_t error_output(associated_filename(output, "error"));
+
+    verbose_save(q.first, output, save_mode::one);
+    save_png(q.second, error_output, save_options_t());
+}
+
+/**************************************************************************************************/
+
+std::tuple<image_t, std::uint64_t, color_table_t> k_means_round(const image_t& image,
+                                                                color_table_t  color_table,
+                                                                const path_t&  output,
+                                                                std::size_t    r) {
+    auto result(quantize(image, color_table));
+
+    dump_quantization(result, derived_filename(output, "_r" + std::to_string(r)));
+
+    std::size_t              count(color_table.size());
+    std::vector<rgba64>      centroid_sums(count);
+    std::vector<std::size_t> centroid_counts(count);
+    auto                     bpp(image.bpp());
+    auto                     p_index(result.first.begin());
+    auto                     p_error(result.second.begin());
+    auto                     p(image.begin());
+    auto                     last(image.end());
+    std::uint64_t            error{0};
+
+    while (p != last) {
+        std::size_t index(*p_index++);
+        auto&       centroid(centroid_sums[index]);
+
+        centroid._r += *p++;
+        centroid._g += *p++;
+        centroid._b += *p++;
+
+        if (bpp == 4)
+            centroid._a += *p++;
+
+        ++centroid_counts[index];
+
+        error += *p_error++;
+    }
+
+    for (std::size_t i(0); i < count; ++i) {
+        auto cc = centroid_counts[i];
+
+        if (cc == 0)
+            continue;
+
+        const auto& cur_sum(centroid_sums[i]);
+        auto&       cur_table(color_table[i]);
+
+        cur_table.red   = cur_sum._r / cc;
+        cur_table.green = cur_sum._g / cc;
+        cur_table.blue  = cur_sum._b / cc;
+        //cur_table.alpha = cur_sum._a / cc;
+    }
+
+    return std::make_tuple(std::move(result.first), error, std::move(color_table));
+}
+
+/**************************************************************************************************/
+
+color_table_t k_means(const image_t& image, color_table_t color_table, const path_t& output) {
+    image_t     last_assigned;
+    std::size_t r{0};
+
+    while (true) {
+        auto round(k_means_round(image, color_table, output, ++r));
+
+        if (std::get<0>(round) == last_assigned)
+            break;
+
+        std::cout << "error: " << std::get<1>(round) << '\n';
+
+        color_table   = std::move(std::get<2>(round));
+        last_assigned = std::move(std::get<0>(round));
+    };
+
+    return color_table;
+}
+
+/**************************************************************************************************/
+
 void truecolor_optimizations(const image_t& image, const path_t& output) {
     if (image.color_type() == PNG_COLOR_TYPE_PALETTE)
         return;
@@ -481,15 +555,20 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
     for (const auto& color : histogram)
         colors.push_back(color.first);
 
-    for (const auto& table_size : {2, 4, 8, 16, 32, 64, 128, 256}) {
+    //auto tests = {2, 4, 8, 16, 32, 64, 128, 256};
+    auto tests = {32};
+
+    for (const auto& table_size : tests) {
         std::vector<rgba> seeds(k_means_pp(colors, table_size));
         color_table_t     color_table(make_color_table(seeds));
-        image_t           quantized(quantize(image, color_table));
-        path_t            cur_output(derived_filename(output, std::to_string(table_size) + "_seed"));
+        auto              seed(quantize(image, color_table));
 
-        verbose_save(quantized, cur_output);
+        dump_quantization(seed, derived_filename(output, std::to_string(table_size) + "_seed"));
 
-        palette_optimizations(quantized, cur_output);
+        color_table_t km_table(k_means(image, color_table, output));
+        auto          km(quantize(image, km_table));
+
+        dump_quantization(km, derived_filename(output, std::to_string(table_size) + "_km"));
     }
 }
 

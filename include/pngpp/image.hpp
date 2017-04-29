@@ -35,6 +35,8 @@ class image_t {
     buffer_t      _buffer;
     color_table_t _color_table;
 
+    friend bool operator==(const image_t& x, const image_t& y);
+
 public:
     image_t() = default;
 
@@ -95,7 +97,44 @@ public:
 
 /**************************************************************************************************/
 
+inline bool operator==(const image_t& x, const image_t& y) {
+    return x._width == y._width && x._height == y._height && x._depth == y._depth &&
+           x._rowbytes == y._rowbytes && x._color_type == y._color_type && x._buffer == y._buffer &&
+           x._color_table == y._color_table;
+}
+
+inline bool operator!=(const image_t& x, const image_t& y) {
+    return !(x == y);
+}
+
+/**************************************************************************************************/
+
 } // namespace pngpp
+
+/**************************************************************************************************/
+
+inline bool operator==(const png_color& x, const png_color& y) {
+    return x.red == y.red && x.green == y.green && x.blue == y.blue;
+}
+inline bool operator!=(const png_color& x, const png_color& y) {
+    return !(x == y);
+}
+
+inline bool operator<(const png_color& x, const png_color& y) {
+    if (x.red < y.red) {
+        return true;
+    } else if (y.red < x.red) {
+        return false;
+    }
+
+    if (x.green < y.green) {
+        return true;
+    } else if (y.green < x.green) {
+        return false;
+    }
+
+    return x.blue < y.blue;
+}
 
 /**************************************************************************************************/
 

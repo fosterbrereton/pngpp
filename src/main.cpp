@@ -246,16 +246,16 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
     std::size_t               count(colors.size());
     std::vector<std::int64_t> values(count);
 
-    for (std::size_t i(0); i < count; ++i) {
-        const auto&  color = colors[i];
+    tbb::parallel_for<std::size_t>(0, count, 1, [&_colors = colors, &_seeds = seeds, &_values = values](std::size_t i){
+        const auto&  color = _colors[i];
         std::int64_t d(std::numeric_limits<std::int64_t>::max());
 
-        for (const auto& seed : seeds) {
+        for (const auto& seed : _seeds) {
             d = std::min(d, sq_distance(color, seed));
         }
 
-        values[i] = d;
-    }
+        _values[i] = d;
+    });
 
     return values;
 }

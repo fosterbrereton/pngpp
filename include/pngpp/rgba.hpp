@@ -189,8 +189,10 @@ inline U shorten(const rgba<T>& c) {
     static_assert(sizeof(value_type) <= sizeof(T), "not a shorten");
 
     // this will break if the signedness differs between T and value_type.
-    static const auto clip([](T x){
-        return static_cast<value_type>(std::max<T>(std::numeric_limits<value_type>::min(), std::min<T>(x, std::numeric_limits<value_type>::max())));
+    static const auto clip([](T x) {
+        return static_cast<value_type>(
+            std::max<T>(std::numeric_limits<value_type>::min(),
+                        std::min<T>(x, std::numeric_limits<value_type>::max())));
     });
 
     return U{clip(c._r), clip(c._g), clip(c._b), clip(c._a)};
@@ -198,7 +200,7 @@ inline U shorten(const rgba<T>& c) {
 
 /**************************************************************************************************/
 
-using rgba_t = rgba<std::uint16_t>;
+using rgba_t   = rgba<std::uint16_t>;
 using rgba64_t = rgba<std::uint64_t>;
 
 /**************************************************************************************************/

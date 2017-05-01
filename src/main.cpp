@@ -470,10 +470,12 @@ void dump_quantization(const quantization_t& q, const path_t& output) {
 
 /**************************************************************************************************/
 
-std::tuple<image_t, std::uint64_t, color_table_t> k_means_round(const image_t& image,
-                                                                color_table_t  color_table,
-                                                                const path_t&  output,
-                                                                std::size_t    r) {
+typedef std::tuple<image_t, std::uint64_t, color_table_t> round_results_t;
+
+round_results_t k_means_round(const image_t& image,
+                              color_table_t  color_table,
+                              const path_t&  output,
+                              std::size_t    r) {
     auto result(quantize(image, color_table));
 
     dump_quantization(result, derived_filename(output, "_r" + std::to_string(r)));
@@ -525,22 +527,31 @@ std::tuple<image_t, std::uint64_t, color_table_t> k_means_round(const image_t& i
 /**************************************************************************************************/
 
 color_table_t k_means(const image_t& image, color_table_t color_table, const path_t& output) {
-    image_t     last_assigned;
-    std::size_t r{0};
+    image_t         last_assigned;
+    std::size_t     r{0};
+    round_results_t best_round;
+
+    std::get<1>(best_round) = std::numeric_limits<std::uint64_t>::max();
 
     while (true) {
-        auto round(k_means_round(image, color_table, output, ++r));
+        round_results_t round(k_means_round(image, color_table, output, ++r));
 
         if (std::get<0>(round) == last_assigned)
             break;
 
-        std::cout << "error: " << std::get<1>(round) << '\n';
+        std::uint64_t error(std::get<1>(round));
+
+        std::cout << "error: " << error << '\n';
+
+        if (error < std::get<1>(best_round)) {
+            best_round = round; // copy
+        }
 
         color_table   = std::move(std::get<2>(round));
         last_assigned = std::move(std::get<0>(round));
     };
 
-    return color_table;
+    return std::get<2>(best_round);
 }
 
 /**************************************************************************************************/
@@ -556,7 +567,7 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
         colors.push_back(color.first);
 
     //auto tests = {2, 4, 8, 16, 32, 64, 128, 256};
-    auto tests = {32};
+    auto tests = {256};
 
     for (const auto& table_size : tests) {
         std::vector<rgba> seeds(k_means_pp(colors, table_size));

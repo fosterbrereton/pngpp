@@ -86,6 +86,10 @@ public:
         return _color_table;
     }
 
+    auto area() const {
+        return width() * height();
+    }
+
     auto bpp() const {
         return rowbytes() / width();
     }

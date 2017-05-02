@@ -346,35 +346,26 @@ quantization_t quantize(const image_t& image, color_table_t color_table) {
         image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
     image_t error_result(
         image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
+
     auto bpp(image.bpp());
     auto p(image.begin());
-    auto last(image.end());
     auto dst(result.begin());
     auto err_dst(error_result.begin());
+    auto area(image.area());
 
-    if (bpp == 3) {
-        while (p != last) {
-            png_color color{
-                *p++, *p++, *p++,
-            };
+    tbb::parallel_for<decltype(area)>(
+        0,
+        area,
+        1,
+        [_bpp = bpp, _p = p, _dst = dst, _err_dst = err_dst, &_color_table = color_table](auto i) {
+            auto   p(&_p[i * _bpp]);
+            rgba_t color{p[0], p[1], p[2], static_cast<rgba_t::value_type>(_bpp == 4 ? p[3] : 255)};
 
-            auto q(quantize(color, color_table));
+            auto q(quantize(color, _color_table));
 
-            *dst++     = q.first;
-            *err_dst++ = std::min<std::uint8_t>(std::lround(q.second), 255);
-        }
-    } else if (bpp == 4) {
-        while (p != last) {
-            rgba_t color{
-                *p++, *p++, *p++, *p++,
-            };
-
-            auto q(quantize(color, color_table));
-
-            *dst++     = q.first;
-            *err_dst++ = std::min<std::uint8_t>(std::lround(q.second), 255);
-        }
-    }
+            _dst[i]     = q.first;
+            _err_dst[i] = std::min<std::uint8_t>(std::lround(q.second), 255);
+        });
 
     result.set_color_table(std::move(color_table));
     error_result.set_color_table(make_grad_table());
@@ -414,7 +405,7 @@ void palette_optimizations(const image_t& image, const path_t& output) {
     auto save_and_best([& _image = image, &_best_size = best_size, &_best_table = best_table](
         const indexed_histogram_table_t& table, const path_t& path) {
         auto        future_size = verbose_save(reindex_image(_image, table), path);
-        std::size_t size = future_size.get();
+        std::size_t size        = future_size.get();
 
         if (size >= _best_size)
             return;
@@ -539,7 +530,10 @@ struct round_state_t {
 };
 
 void dump_round(const round_state_t& round, const path_t& output) {
-    std::cout << "r" << round._r << " error: " << round.error() << '\n';
+    auto error(round.error());
+    auto epp(static_cast<double>(error) / round._image.area());
+
+    std::cout << "r" << round._r << " error: " << round.error() << " (" << epp << ")\n";
 
     dump_quantization(round._image, // image contains this round's color table
                       round._image_error,
@@ -558,9 +552,11 @@ round_state_t k_means_init_state(const image_t& original, color_table_t seed) {
 
     while (p != last) {
         std::size_t index(*p_index++);
-        rgba64_t    color{*p++, *p++, *p++, std::uint64_t(bpp == 4 ? *p++ : 255)};
+        rgba64_t color{p[0], p[1], p[2], static_cast<rgba64_t::value_type>(bpp == 4 ? p[3] : 255)};
 
         result._centroids.add_member(index, color);
+
+        p += bpp;
     }
 
     return result;
@@ -672,7 +668,7 @@ int main(int argc, char** argv) try {
     if (argc <= 2)
         throw std::runtime_error("Destination directory not specified");
 
-//    std::srand(std::time(nullptr));
+    //    std::srand(std::time(nullptr));
 
     path_t        input(canonical(argv[1]));
     path_t        output(argv[2]);

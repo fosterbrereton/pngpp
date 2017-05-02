@@ -39,7 +39,9 @@ struct save_options_t {
 };
 
 // returns the size of the saved file in bytes.
-std::future<std::size_t> save_png(const image_t& image, const path_t& path, const save_options_t& options);
+std::future<std::size_t> save_png(const image_t&        image,
+                                  const path_t&         path,
+                                  const save_options_t& options);
 
 /**************************************************************************************************/
 

@@ -186,7 +186,7 @@ true_histogram_t true_histogram(const image_t& image) {
     if (bpp == 3) {
         while (p != last) {
             rgba_t rgb{
-                *p++, *p++, *p++, 0,
+                *p++, *p++, *p++, 255,
             };
 
             ++result[rgb];
@@ -246,16 +246,17 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
     std::size_t               count(colors.size());
     std::vector<std::int64_t> values(count);
 
-    tbb::parallel_for<std::size_t>(0, count, 1, [&_colors = colors, &_seeds = seeds, &_values = values](std::size_t i){
-        const auto&  color = _colors[i];
-        std::int64_t d(std::numeric_limits<std::int64_t>::max());
+    tbb::parallel_for<std::size_t>(
+        0, count, 1, [& _colors = colors, &_seeds = seeds, &_values = values](std::size_t i) {
+            const auto&  color = _colors[i];
+            std::int64_t d(std::numeric_limits<std::int64_t>::max());
 
-        for (const auto& seed : _seeds) {
-            d = std::min(d, sq_distance(color, seed));
-        }
+            for (const auto& seed : _seeds) {
+                d = std::min(d, sq_distance(color, seed));
+            }
 
-        _values[i] = d;
-    });
+            _values[i] = d;
+        });
 
     return values;
 }
@@ -453,6 +454,8 @@ struct centroid_cache_t {
     std::vector<rgba64_t>      _colors; // cumulative region color
     std::vector<std::uint64_t> _count;  // number of region members
 
+    centroid_cache_t() = default;
+
     explicit centroid_cache_t(std::size_t count) : _colors(count), _count(count) {}
 
     std::size_t size() const {
@@ -462,8 +465,14 @@ struct centroid_cache_t {
     rgba64_t& centroid(std::size_t index) {
         return _colors[index];
     }
+    const rgba64_t& centroid(std::size_t index) const {
+        return _colors[index];
+    }
 
     std::uint64_t& count(std::size_t index) {
+        return _count[index];
+    }
+    std::uint64_t count(std::size_t index) const {
         return _count[index];
     }
 
@@ -484,11 +493,11 @@ struct centroid_cache_t {
             return;
 
         remove_member(src_index, color);
-        add_member(src_index, color);
+        add_member(dst_index, color);
     }
 
-    rgba_t color(std::size_t index) {
-        rgba_t result;
+    rgba_t color(std::size_t index) const {
+        rgba_t result{0, 0, 0, 0};
         double c(count(index));
 
         if (c) {
@@ -497,39 +506,56 @@ struct centroid_cache_t {
 
         return result;
     }
+
+    color_table_t table() const {
+        auto          count(size());
+        color_table_t result;
+
+        for (std::size_t i(0); i < count; ++i)
+            result.push_back(make_png_color(color(i)));
+
+        return result;
+    }
 };
 
-struct round_result_t {
-    explicit round_result_t(centroid_cache_t centroids)
-        : _color_table(centroids.size()), _centroids(std::move(centroids)) {}
+struct round_state_t {
+    round_state_t() = default;
 
-    explicit round_result_t(std::size_t count) : _color_table(count), _centroids(count) {}
+    explicit round_state_t(std::size_t count) : _centroids(count) {}
 
-    std::size_t size() const {
-        return _color_table.size();
+    auto size() const {
+        return _centroids.size();
     }
 
+    color_table_t centroid_table() const {
+        return _centroids.table();
+    }
+
+    std::uint64_t error() const {
+        return std::accumulate(_image_error.begin(), _image_error.end(), std::uint64_t(0));
+    }
+
+    std::size_t      _r{0};        // iteration count
     image_t          _image;       // original image quantized with current color table
     image_t          _image_error; // rounded per-pixel quantization error
-    std::uint64_t    _error{0};    // error between src image and _image
-    color_table_t    _color_table; // centroid-modified color table for next round
     centroid_cache_t _centroids;   // cache of cumulative centroid values
 };
 
-// the first round is treated a little differently because of necessary
-// initialization that we don't want to impose on the other rounds.
-round_result_t k_means_first_round(const image_t& original,
-                                   color_table_t  seed, // from k_means_pp
-                                   const path_t&  output) {
-    round_result_t result(seed.size());
+void dump_round(const round_state_t& round, const path_t& output) {
+    std::cout << "r" << round._r << " error: " << round.error() << '\n';
+
+    dump_quantization(round._image, // image contains this round's color table
+                      round._image_error,
+                      derived_filename(output, "_r" + std::to_string(round._r)));
+}
+
+round_state_t k_means_init_state(const image_t& original, color_table_t seed) {
+    round_state_t result(seed.size());
 
     std::tie(result._image, result._image_error) = quantize(original, std::move(seed));
 
-    dump_quantization(result._image, result._image_error, derived_filename(output, "_r0"));
-
     auto bpp(original.bpp());
     auto p_index(result._image.begin());
-    auto p_error(result._image_error.begin());
     auto p(original.begin());
     auto last(original.end());
 
@@ -538,77 +564,77 @@ round_result_t k_means_first_round(const image_t& original,
         rgba64_t    color{*p++, *p++, *p++, std::uint64_t(bpp == 4 ? *p++ : 255)};
 
         result._centroids.add_member(index, color);
-
-        result._error += *p_error++;
     }
 
     return result;
 }
 
-round_result_t k_means_round(const image_t&        original,
-                             const round_result_t& prev_round,
-                             const path_t&         output,
-                             std::size_t           r) {
-    round_result_t result(prev_round._centroids);
-    auto           count(result.size());
+void k_means_round(const image_t& original, const image_t& prev_image, round_state_t& state) {
+    ++state._r;
 
-    std::tie(result._image, result._image_error) = quantize(original, prev_round._color_table);
-
-    dump_quantization(
-        result._image, result._image_error, derived_filename(output, "_r" + std::to_string(r)));
+    // requantize the original image with the updated centroid color table
+    std::tie(state._image, state._image_error) = quantize(original, state.centroid_table());
 
     auto bpp(original.bpp());
-    auto p_prior_index(prev_round._image.begin());
-    auto p_index(result._image.begin());
-    auto p_error(result._image_error.begin());
+    auto p_prior_index(prev_image.begin());
+    auto p_index(state._image.begin());
     auto p(original.begin());
     auto last(original.end());
 
     while (p != last) {
         std::size_t prior_index(*p_prior_index++);
         std::size_t index(*p_index++);
-        rgba64_t    color{*p++, *p++, *p++, std::uint64_t(bpp == 4 ? *p++ : 255)};
 
-        result._centroids.move_member(prior_index, index, color);
+        if (prior_index == index) {
+            p += bpp;
+            continue;
+        }
 
-        result._error += *p_error++;
+        rgba64_t color{*p++, *p++, *p++, std::uint64_t(bpp == 4 ? *p++ : 255)};
+
+        state._centroids.move_member(prior_index, index, color);
     }
-
-    for (std::size_t i(0); i < count; ++i) {
-        rgba_t color           = shorten<rgba_t>(result._centroids.color(i));
-        result._color_table[i] = {static_cast<png_byte>(color._r),
-                                  static_cast<png_byte>(color._g),
-                                  static_cast<png_byte>(color._b)};
-    }
-
-    return result;
 }
 
 /**************************************************************************************************/
 
 color_table_t k_means(const image_t& image, color_table_t color_table, const path_t& output) {
-    round_result_t prev_round(k_means_first_round(image, std::move(color_table), output));
-    round_result_t best_round(prev_round);
-    std::size_t    r{0};
+    round_state_t round_state;
+    std::uint64_t best_error(std::numeric_limits<std::uint64_t>::max());
+    color_table_t best_table;
+    bool          first{true};
 
     while (true) {
-        std::uint64_t error(prev_round._error);
+        image_t prev_image;
 
-        std::cout << "error: " << error << '\n';
+        if (first) {
+            round_state = k_means_init_state(image, std::move(color_table));
 
-        if (error < best_round._error) {
-            best_round = prev_round; // copy
+            first = false;
+        } else {
+            prev_image = std::move(round_state._image);
+
+            k_means_round(image, prev_image, round_state);
         }
 
-        round_result_t round(k_means_round(image, prev_round, output, ++r));
+        dump_round(round_state, output);
 
-        if (prev_round._image == round._image)
+        std::uint64_t error(round_state.error());
+
+        if (error < best_error) {
+            best_table = round_state._image.color_table(); // copy
+            best_error = error;
+
+            // exact quantization found
+            if (best_error == 0)
+                break;
+        }
+
+        if (prev_image == round_state._image)
             break;
-
-        prev_round = std::move(round);
     };
 
-    return best_round._image.color_table();
+    return best_table;
 }
 
 /**************************************************************************************************/
@@ -649,7 +675,7 @@ int main(int argc, char** argv) try {
     if (argc <= 2)
         throw std::runtime_error("Destination directory not specified");
 
-    std::srand(std::time(nullptr));
+//    std::srand(std::time(nullptr));
 
     path_t        input(canonical(argv[1]));
     path_t        output(argv[2]);

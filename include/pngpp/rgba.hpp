@@ -82,40 +82,40 @@ inline rgba<T>& operator/=(rgba<T>& x, const rgba<T>& y) {
 
 template <typename T>
 inline rgba<T>& operator+=(rgba<T>& x, double y) {
-    x._r += y;
-    x._g += y;
-    x._b += y;
-    x._a += y;
+    x._r = std::lround(x._r + y);
+    x._g = std::lround(x._g + y);
+    x._b = std::lround(x._b + y);
+    x._a = std::lround(x._a + y);
 
     return x;
 }
 
 template <typename T>
 inline rgba<T>& operator-=(rgba<T>& x, double y) {
-    x._r -= y;
-    x._g -= y;
-    x._b -= y;
-    x._a -= y;
+    x._r = std::lround(x._r - y);
+    x._g = std::lround(x._g - y);
+    x._b = std::lround(x._b - y);
+    x._a = std::lround(x._a - y);
 
     return x;
 }
 
 template <typename T>
 inline rgba<T>& operator*=(rgba<T>& x, double y) {
-    x._r *= y;
-    x._g *= y;
-    x._b *= y;
-    x._a *= y;
+    x._r = std::lround(x._r * y);
+    x._g = std::lround(x._g * y);
+    x._b = std::lround(x._b * y);
+    x._a = std::lround(x._a * y);
 
     return x;
 }
 
 template <typename T>
 inline rgba<T>& operator/=(rgba<T>& x, double y) {
-    x._r /= y;
-    x._g /= y;
-    x._b /= y;
-    x._a /= y;
+    x._r = std::lround(x._r / y);
+    x._g = std::lround(x._g / y);
+    x._b = std::lround(x._b / y);
+    x._a = std::lround(x._a / y);
 
     return x;
 }
@@ -190,9 +190,10 @@ inline U shorten(const rgba<T>& c) {
 
     // this will break if the signedness differs between T and value_type.
     static const auto clip([](T x) {
-        return static_cast<value_type>(
-            std::max<T>(std::numeric_limits<value_type>::min(),
-                        std::min<T>(x, std::numeric_limits<value_type>::max())));
+        constexpr T tmin{std::numeric_limits<value_type>::min()};
+        constexpr T tmax{std::numeric_limits<value_type>::max()};
+
+        return static_cast<value_type>(std::max(tmin, std::min(x, tmax)));
     });
 
     return U{clip(c._r), clip(c._g), clip(c._b), clip(c._a)};
@@ -200,8 +201,18 @@ inline U shorten(const rgba<T>& c) {
 
 /**************************************************************************************************/
 
-using rgba_t   = rgba<std::uint16_t>;
+using rgba_t   = rgba<std::uint8_t>;
+using rgba16_t = rgba<std::uint16_t>;
 using rgba64_t = rgba<std::uint64_t>;
+
+/**************************************************************************************************/
+
+template <typename T>
+png_color make_png_color(const rgba<T>& src) {
+    rgba<png_byte> x(shorten<rgba<png_byte>>(src));
+
+    return {x._r, x._g, x._b};
+}
 
 /**************************************************************************************************/
 

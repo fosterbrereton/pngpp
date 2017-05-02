@@ -435,10 +435,12 @@ image_t read_png(const path_t& path) {
 
 /**************************************************************************************************/
 
-std::size_t save_png(const image_t& image, const path_t& path, const save_options_t& options) {
-    png_saver_t saver(path);
+std::future<std::size_t> save_png(const image_t& image, const path_t& path, const save_options_t& options) {
+    return std::async([_image = image, _path = path, _options = options](){
+        png_saver_t saver(_path);
 
-    return saver.save(image, options);
+        return saver.save(_image, _options);
+    });
 }
 
 /**************************************************************************************************/

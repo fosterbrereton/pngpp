@@ -84,20 +84,16 @@ void dump_color_table(const image_t& image, const path_t& output) {
 
 /**************************************************************************************************/
 
-std::size_t verbose_save(const image_t& image,
-                         const path_t&  path,
-                         save_mode      mode = save_mode::max) {
+std::future<std::size_t> verbose_save(const image_t& image,
+                                      const path_t&  path,
+                                      save_mode      mode = save_mode::max) {
     dump_color_table(image, path);
 
     save_options_t options;
 
     options._mode = mode;
 
-    std::size_t size(save_png(image, path, options));
-
-    std::cout << path.leaf().string() << ": " << size << '\n';
-
-    return size;
+    return save_png(image, path, options);
 }
 
 /**************************************************************************************************/
@@ -417,7 +413,8 @@ void palette_optimizations(const image_t& image, const path_t& output) {
 
     auto save_and_best([& _image = image, &_best_size = best_size, &_best_table = best_table](
         const indexed_histogram_table_t& table, const path_t& path) {
-        std::size_t size = verbose_save(reindex_image(_image, table), path);
+        auto        future_size = verbose_save(reindex_image(_image, table), path);
+        std::size_t size = future_size.get();
 
         if (size >= _best_size)
             return;

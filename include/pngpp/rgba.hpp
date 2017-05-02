@@ -203,7 +203,8 @@ inline U shorten(const rgba<T>& c) {
 
 using rgba_t   = rgba<std::uint8_t>;
 using rgba16_t = rgba<std::uint16_t>;
-using rgba64_t = rgba<std::uint64_t>;
+using rgba32_t = rgba<std::uint32_t>;
+using rgba64_t = rgba<std::uint64_t>; // for accumulators, etc.
 
 /**************************************************************************************************/
 

@@ -242,17 +242,20 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
     std::size_t               count(colors.size());
     std::vector<std::int64_t> values(count);
 
-    tbb::parallel_for<std::size_t>(
-        0, count, 1, [& _colors = colors, &_seeds = seeds, &_values = values](std::size_t i) {
-            const auto&  color = _colors[i];
-            std::int64_t d(std::numeric_limits<std::int64_t>::max());
+    tbb::parallel_for<std::size_t>(0,
+                                   count,
+                                   1,
+                                   [& _colors = colors, &_seeds = seeds, &_values = values](
+                                       std::size_t i) {
+                                       const auto&  color = _colors[i];
+                                       std::int64_t d(std::numeric_limits<std::int64_t>::max());
 
-            for (const auto& seed : _seeds) {
-                d = std::min(d, sq_distance(color, seed));
-            }
+                                       for (const auto& seed : _seeds) {
+                                           d = std::min(d, sq_distance(color, seed));
+                                       }
 
-            _values[i] = d;
-        });
+                                       _values[i] = d;
+                                   });
 
     return values;
 }
@@ -260,8 +263,9 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
 /**************************************************************************************************/
 
 std::vector<rgba_t> k_means_pp(const std::vector<rgba_t>& v, std::size_t n) {
-    std::random_device  rd;
-    std::mt19937        gen(rd());
+    static std::random_device rd;
+    static std::mt19937       gen(rd());
+
     std::vector<rgba_t> result;
     std::size_t         i(std::rand() % v.size());
 
@@ -342,30 +346,32 @@ inline auto quantize(const png_color& c, const color_table_t& table) {
 typedef std::pair<image_t, image_t> quantization_t;
 
 quantization_t quantize(const image_t& image, color_table_t color_table) {
-    image_t result(
-        image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
-    image_t error_result(
-        image.width(), image.height(), image.depth(), image.width(), PNG_COLOR_TYPE_PALETTE);
-
-    auto bpp(image.bpp());
-    auto p(image.begin());
+    image_t result(image.width(),
+                   image.height(),
+                   image.depth(),
+                   image.width(),
+                   PNG_COLOR_TYPE_PALETTE);
+    image_t error_result(image.width(),
+                         image.height(),
+                         image.depth(),
+                         image.width(),
+                         PNG_COLOR_TYPE_PALETTE);
     auto dst(result.begin());
     auto err_dst(error_result.begin());
     auto area(image.area());
 
-    tbb::parallel_for<decltype(area)>(
-        0,
-        area,
-        1,
-        [_bpp = bpp, _p = p, _dst = dst, _err_dst = err_dst, &_color_table = color_table](auto i) {
-            auto   p(&_p[i * _bpp]);
-            rgba_t color{p[0], p[1], p[2], static_cast<rgba_t::value_type>(_bpp == 4 ? p[3] : 255)};
+    tbb::parallel_for<decltype(
+        area)>(0,
+               area,
+               1,
+               [& _image = image, _dst = dst, _err_dst = err_dst, &_color_table = color_table](
+                   auto i) {
+                   auto q(quantize(_image.pixel<std::uint8_t>(i), _color_table));
 
-            auto q(quantize(color, _color_table));
-
-            _dst[i]     = q.first;
-            _err_dst[i] = std::min<std::uint8_t>(std::lround(q.second), 255);
-        });
+                   _dst[i]     = q.first;
+                   _err_dst[i] = static_cast<std::uint8_t>(
+                       std::min<std::uint16_t>(std::lround(q.second), 255));
+               });
 
     result.set_color_table(std::move(color_table));
     error_result.set_color_table(make_grad_table());
@@ -402,17 +408,19 @@ void palette_optimizations(const image_t& image, const path_t& output) {
     indexed_histogram_table_t best_table;
     std::size_t               best_size{std::numeric_limits<std::size_t>::max()};
 
-    auto save_and_best([& _image = image, &_best_size = best_size, &_best_table = best_table](
-        const indexed_histogram_table_t& table, const path_t& path) {
-        auto        future_size = verbose_save(reindex_image(_image, table), path);
-        std::size_t size        = future_size.get();
+    auto save_and_best(
+        [& _image     = image,
+         &_best_size  = best_size,
+         &_best_table = best_table](const indexed_histogram_table_t& table, const path_t& path) {
+            auto        future_size = verbose_save(reindex_image(_image, table), path);
+            std::size_t size        = future_size.get();
 
-        if (size >= _best_size)
-            return;
+            if (size >= _best_size)
+                return;
 
-        _best_size  = size;
-        _best_table = table;
-    });
+            _best_size  = size;
+            _best_table = table;
+        });
 
     save_and_best(hist_table, derived_filename(output, "sorted"));
 
@@ -656,6 +664,8 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
         auto          km(quantize(image, km_table));
 
         dump_quantization(km, derived_filename(output, std::to_string(table_size) + "_km"));
+
+        palette_optimizations(km.first, output);
     }
 }
 
@@ -667,8 +677,6 @@ int main(int argc, char** argv) try {
 
     if (argc <= 2)
         throw std::runtime_error("Destination directory not specified");
-
-    //    std::srand(std::time(nullptr));
 
     path_t        input(canonical(argv[1]));
     path_t        output(argv[2]);

@@ -68,8 +68,10 @@ public:
 
 png_reader_t::png_reader_t(const path_t& path)
     : _input(path.string().c_str(), std::ios_base::in | std::ios_base::binary),
-      _png_struct(png_create_read_struct(
-          PNG_LIBPNG_VER_STRING, nullptr, &png_reader_t::fail, &png_reader_t::warn)),
+      _png_struct(png_create_read_struct(PNG_LIBPNG_VER_STRING,
+                                         nullptr,
+                                         &png_reader_t::fail,
+                                         &png_reader_t::warn)),
       _png_info(png_create_info_struct(_png_struct)),
       _png_end_info(png_create_info_struct(_png_struct)) {
     if (!_input)
@@ -269,8 +271,10 @@ void png_saver_t::write_thunk(png_structp png, png_bytep buffer, png_size_t size
 bufferstream_t png_saver_t::write_one(const image_params_t& image, const one_options_t& options) {
     bufferstream_t stream;
 
-    png_structp png_struct = png_create_write_struct(
-        PNG_LIBPNG_VER_STRING, nullptr, &png_saver_t::fail, &png_saver_t::warn);
+    png_structp png_struct = png_create_write_struct(PNG_LIBPNG_VER_STRING,
+                                                     nullptr,
+                                                     &png_saver_t::fail,
+                                                     &png_saver_t::warn);
 
     if (!png_struct)
         png_error(png_struct, "png_create_write_struct failed");
@@ -373,11 +377,12 @@ std::size_t png_saver_t::save(const image_t& image, const save_options_t& option
     if (!_output)
         png_error(nullptr, "file could not be opened for save");
 
-    std::vector<one_options_t> solo(
-        1,
-        {
-            options._one_z_compression, options._one_z_strategy, options._one_png_filter,
-        });
+    std::vector<one_options_t> solo(1,
+                                    {
+                                        options._one_z_compression,
+                                        options._one_z_strategy,
+                                        options._one_png_filter,
+                                    });
 
     const std::vector<one_options_t>& options_set =
         options._mode == save_mode::one ?

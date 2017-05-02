@@ -15,6 +15,7 @@
 
 // application
 #include <pngpp/buffer.hpp>
+#include <pngpp/rgba.hpp>
 
 /**************************************************************************************************/
 
@@ -96,6 +97,25 @@ public:
 
     void set_color_table(color_table_t color_table) {
         _color_table = std::move(color_table);
+    }
+
+    template <typename T>
+    rgba<T> pixel(std::size_t index) const {
+        auto bp{bpp()};
+        auto offset(index * bp);
+        auto base(data() + offset);
+
+        // this needs to be revisited for non-truecolor PNGs.
+        rgba<std::uint8_t> base_pixel{base[0],
+                                      base[1],
+                                      base[2],
+                                      static_cast<std::uint8_t>(bp == 4 ? base[0] : 255)};
+        return widen<rgba<T>>(base_pixel);
+    }
+
+    template <typename T>
+    rgba<T> pixel(std::size_t x, std::size_t y) const {
+        return pixel<T>(y * _width + x);
     }
 };
 

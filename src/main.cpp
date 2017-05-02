@@ -161,12 +161,13 @@ image_t reindex_image(const image_t& image, const indexed_histogram_table_t& tab
 
 /**************************************************************************************************/
 
-inline double grey(const png_color& c) {
-    double r = c.red / 255.;
-    double g = c.green / 255.;
-    double b = c.blue / 255.;
+inline double grey(const rgba_t& c) {
+    double r = c._r / 255.;
+    double g = c._g / 255.;
+    double b = c._b / 255.;
+    double a = c._a / 255.;
 
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b * a;
 }
 
 /**************************************************************************************************/
@@ -263,11 +264,14 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
 /**************************************************************************************************/
 
 std::vector<rgba_t> k_means_pp(const std::vector<rgba_t>& v, std::size_t n) {
+    if (v.size() <= n)
+        return v;
+
     static std::random_device rd;
     static std::mt19937       gen(rd());
 
     std::vector<rgba_t> result;
-    std::size_t         i(std::rand() % v.size());
+    std::size_t         i(gen() % v.size());
 
     result.push_back(v[i]);
 
@@ -284,21 +288,6 @@ std::vector<rgba_t> k_means_pp(const std::vector<rgba_t>& v, std::size_t n) {
 
 /**************************************************************************************************/
 
-color_table_t make_color_table(const std::vector<rgba_t>& v) {
-    std::size_t   count(std::min<std::size_t>(v.size(), PNG_MAX_PALETTE_LENGTH));
-    color_table_t result(count);
-
-    for (std::size_t i(0); i < count; ++i) {
-        result[i].red   = v[i]._r;
-        result[i].green = v[i]._g;
-        result[i].blue  = v[i]._b;
-    }
-
-    return result;
-}
-
-/**************************************************************************************************/
-
 color_table_t make_grad_table() {
     // grayscale gradient color table from black to white. It might be better to
     // make this e.g., a green or yellow gradient instead, to ease visibility in
@@ -307,9 +296,10 @@ color_table_t make_grad_table() {
     color_table_t result(count);
 
     for (std::size_t i(0); i < count; ++i) {
-        result[i].red   = i;
-        result[i].green = i;
-        result[i].blue  = i;
+        result[i]._r = i;
+        result[i]._g = i;
+        result[i]._b = i;
+        result[i]._a = 255;
     }
 
     return result;
@@ -493,7 +483,7 @@ struct centroid_cache_t {
     }
 
     rgba_t color(std::size_t index) const {
-        rgba_t result{0, 0, 0, 0};
+        rgba_t result{0, 0, 0, 255};
         double c(count(index));
 
         if (c) {
@@ -508,7 +498,7 @@ struct centroid_cache_t {
         color_table_t result;
 
         for (std::size_t i(0); i < count; ++i)
-            result.push_back(make_png_color(color(i)));
+            result.push_back(color(i));
 
         return result;
     }
@@ -654,13 +644,12 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
     auto tests = {256};
 
     for (const auto& table_size : tests) {
-        std::vector<rgba_t> seeds(k_means_pp(colors, table_size));
-        color_table_t       color_table(make_color_table(seeds));
-        auto                seed(quantize(image, color_table));
+        std::vector<rgba_t> seed_table(k_means_pp(colors, table_size));
+        auto                seed_image(quantize(image, seed_table));
 
-        dump_quantization(seed, derived_filename(output, std::to_string(table_size) + "_seed"));
+        dump_quantization(seed_image, derived_filename(output, std::to_string(table_size) + "_seed"));
 
-        color_table_t km_table(k_means(image, color_table, output));
+        color_table_t km_table(k_means(image, seed_table, output));
         auto          km(quantize(image, km_table));
 
         dump_quantization(km, derived_filename(output, std::to_string(table_size) + "_km"));

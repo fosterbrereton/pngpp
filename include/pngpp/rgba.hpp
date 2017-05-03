@@ -13,6 +13,16 @@
 namespace pngpp {
 
 /**************************************************************************************************/
+// Fixed point 0.8 bit arithmetic. This assumes your 8-bit value represents a
+// floating point value of the range [0..1), and allows closed multiplication of
+// two values. From "Three Wrongs Make a Right", James F. Blinn, IEEE Computer
+// Graphics and Applications, Nov. 1995, Vol. 15, issue 6
+inline std::uint8_t fixmul(std::uint8_t x, std::uint8_t y) {
+    std::uint32_t i(x * y + 128);
+    return static_cast<std::uint8_t>((i + (i >> 8)) >> 8);
+}
+
+/**************************************************************************************************/
 
 template <typename T>
 struct rgba {
@@ -207,12 +217,22 @@ using rgba32_t = rgba<std::uint32_t>;
 using rgba64_t = rgba<std::uint64_t>; // for accumulators, etc.
 
 /**************************************************************************************************/
-
+#if 0
 template <typename T>
 png_color make_png_color(const rgba<T>& src) {
     rgba<png_byte> x(shorten<rgba<png_byte>>(src));
 
     return {x._r, x._g, x._b};
+}
+#endif
+/**************************************************************************************************/
+
+inline rgba_t premultiply(rgba_t c) {
+    c._r = fixmul(c._r, c._a);
+    c._g = fixmul(c._g, c._a);
+    c._b = fixmul(c._b, c._a);
+
+    return c;
 }
 
 /**************************************************************************************************/

@@ -218,22 +218,8 @@ inline auto sq_distance(const rgba_t& x, const rgba_t& y) {
 
 /**************************************************************************************************/
 
-inline auto sq_distance(const png_color& x, const rgba_t& y) {
-    return sq_distance(x.red, y._r) + sq_distance(x.green, y._g) + sq_distance(x.blue, y._b) +
-           sq_distance(255, y._a);
-}
-
-/**************************************************************************************************/
-
-inline auto sq_distance(const rgba_t& x, const png_color& y) {
-    return sq_distance(y, x);
-}
-
-/**************************************************************************************************/
-
-auto euclidean_distance(const rgba_t& x, const rgba_t& y) {
-    return std::sqrt(sq_distance(x._r, y._r) + sq_distance(x._g, y._g) + sq_distance(x._b, y._b) +
-                     sq_distance(x._a, y._a));
+inline auto euclidean_distance(const rgba_t& x, const rgba_t& y) {
+    return std::sqrt(sq_distance(x, y));
 }
 
 /**************************************************************************************************/
@@ -323,12 +309,6 @@ std::pair<std::size_t, double> quantize(const rgba_t& c, const color_table_t& ta
     }
 
     return std::make_pair(index, std::sqrt(min_error));
-}
-
-/**************************************************************************************************/
-
-inline auto quantize(const png_color& c, const color_table_t& table) {
-    return quantize(rgba_t{c.red, c.green, c.blue, 255}, table);
 }
 
 /**************************************************************************************************/

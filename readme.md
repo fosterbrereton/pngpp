@@ -1,6 +1,6 @@
 [![Build status](https://travis-ci.org/fosterbrereton/pngpp.svg?branch=master)](https://travis-ci.org/fosterbrereton/pngpp)
 
-Boilerplate is a relatively empty project that includes a number of common C++ dependencies, to get an initial framework up and running quickly.
+`pngpp` is a sandbox for all things PNG.
 
 # Required Binaries
 

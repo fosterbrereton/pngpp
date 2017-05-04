@@ -656,7 +656,7 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
 #if 1
     k_means_quantization(image, output);
 #else
-    k_means_quantization(premultiply(image), derived_filename(output, "prem"));
+    k_means_quantization(premultiply(image), output);
 #endif
 }
 

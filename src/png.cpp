@@ -188,9 +188,7 @@ image_t png_reader_t::read() {
         for (std::size_t i(0); i < count; ++i) {
             const png_color& c(color_table[i]);
             const png_byte   a(alpha_table ? alpha_table[i] : 255);
-            table[i] = {
-                c.red, c.green, c.blue, a
-            };
+            table[i] = {c.red, c.green, c.blue, a};
         }
 
         result.set_color_table(table);
@@ -339,10 +337,7 @@ bufferstream_t png_saver_t::write_one(const image_params_t& image, const one_opt
                 uses_alpha = true;
         }
 
-        png_set_PLTE(png_struct,
-                     png_info,
-                     ctable.data(),
-                     static_cast<int>(ctable.size()));
+        png_set_PLTE(png_struct, png_info, ctable.data(), static_cast<int>(ctable.size()));
 
         if (uses_alpha) {
             png_color_16 npi{0}; // ???

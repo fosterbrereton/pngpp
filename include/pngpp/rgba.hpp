@@ -17,7 +17,7 @@ namespace pngpp {
 // floating point value of the range [0..1), and allows closed multiplication of
 // two values. From "Three Wrongs Make a Right", James F. Blinn, IEEE Computer
 // Graphics and Applications, Nov. 1995, Vol. 15, issue 6
-inline std::uint8_t fixmul(std::uint8_t x, std::uint8_t y) {
+inline constexpr std::uint8_t fixmul(std::uint8_t x, std::uint8_t y) {
     std::uint32_t i(x * y + 128);
     return static_cast<std::uint8_t>((i + (i >> 8)) >> 8);
 }

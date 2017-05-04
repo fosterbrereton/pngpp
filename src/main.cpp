@@ -57,27 +57,32 @@ void dump_color_table(const image_t& image, const path_t& output) {
     if (color_table.empty())
         return;
 
-    color_table.resize(PNG_MAX_PALETTE_LENGTH);
-
     constexpr std::size_t swatch_size_k(32);
-    const std::size_t     width(16 * swatch_size_k);
-    const std::size_t     height(16 * swatch_size_k);
-    const std::size_t     depth(8);
-    const std::size_t     rowbytes(width);
-    image_t               table(width, height, depth, rowbytes, PNG_COLOR_TYPE_PALETTE);
-    auto                  first(table.data());
 
-    for (std::size_t y(0); y < 16; ++y) {
+    const std::size_t count(color_table.size());
+    const std::size_t dim(std::ceil(std::sqrt(count)));
+    const std::size_t width(dim * swatch_size_k);
+    const std::size_t height(dim * swatch_size_k);
+    const std::size_t depth(8);
+    const std::size_t rowbytes(width * 4);
+    image_t           table(width, height, depth, rowbytes, PNG_COLOR_TYPE_RGB_ALPHA);
+    auto              first(table.data());
+
+    for (std::size_t y(0); y < dim; ++y) {
         for (std::size_t i(0); i < swatch_size_k; ++i) {
-            for (std::size_t x(0); x < 16; ++x) {
+            for (std::size_t x(0); x < dim; ++x) {
+                std::size_t   index(dim * y + x);
+                bool          valid(index < count);
+                const rgba_t& entry(valid ? color_table[index] : rgba_t());
                 for (std::size_t j(0); j < swatch_size_k; ++j) {
-                    *first++ = 16 * y + x;
+                    *first++ = entry._r;
+                    *first++ = entry._g;
+                    *first++ = entry._b;
+                    *first++ = i > j ? entry._a : valid ? 255 : 0;
                 }
             }
         }
     }
-
-    table.set_color_table(color_table);
 
     save_png(table, associated_filename(output, "table"), save_options_t());
 }
@@ -484,6 +489,8 @@ struct centroid_cache_t {
     }
 };
 
+/**************************************************************************************************/
+
 struct round_state_t {
     round_state_t() = default;
 
@@ -507,6 +514,8 @@ struct round_state_t {
     centroid_cache_t _centroids;   // cache of cumulative centroid values
 };
 
+/**************************************************************************************************/
+
 void dump_round(const round_state_t& round, const path_t& output) {
     auto error(round.error());
     auto epp(static_cast<double>(error) / round._image.area());
@@ -517,6 +526,8 @@ void dump_round(const round_state_t& round, const path_t& output) {
                       round._image_error,
                       derived_filename(output, "_r" + std::to_string(round._r)));
 }
+
+/**************************************************************************************************/
 
 round_state_t k_means_init_state(const image_t& original, color_table_t seed) {
     round_state_t result(seed.size());
@@ -540,7 +551,11 @@ round_state_t k_means_init_state(const image_t& original, color_table_t seed) {
     return result;
 }
 
-void k_means_round(const image_t& original, const image_t& prev_image, round_state_t& state) {
+/**************************************************************************************************/
+
+round_state_t k_means_round(const image_t& original,
+                            const image_t& prev_image,
+                            round_state_t  state) {
     ++state._r;
 
     // requantize the original image with the updated centroid color table
@@ -565,29 +580,19 @@ void k_means_round(const image_t& original, const image_t& prev_image, round_sta
 
         state._centroids.move_member(prior_index, index, color);
     }
+
+    return state;
 }
 
 /**************************************************************************************************/
 
 color_table_t k_means(const image_t& image, color_table_t color_table, const path_t& output) {
-    round_state_t round_state;
+    round_state_t round_state(k_means_init_state(image, std::move(color_table)));
     std::uint64_t best_error(std::numeric_limits<std::uint64_t>::max());
     color_table_t best_table;
-    bool          first{true};
+    image_t       prev_image;
 
     while (true) {
-        image_t prev_image;
-
-        if (first) {
-            round_state = k_means_init_state(image, std::move(color_table));
-
-            first = false;
-        } else {
-            prev_image = std::move(round_state._image);
-
-            k_means_round(image, prev_image, round_state);
-        }
-
         dump_round(round_state, output);
 
         std::uint64_t error(round_state.error());
@@ -603,6 +608,12 @@ color_table_t k_means(const image_t& image, color_table_t color_table, const pat
 
         if (prev_image == round_state._image)
             break;
+
+        prev_image = std::move(round_state._image);
+
+        round_state._image_error = image_t();
+
+        round_state = k_means_round(image, prev_image, std::move(round_state));
     };
 
     return best_table;
@@ -610,10 +621,7 @@ color_table_t k_means(const image_t& image, color_table_t color_table, const pat
 
 /**************************************************************************************************/
 
-void truecolor_optimizations(const image_t& image, const path_t& output) {
-    if (image.color_type() == PNG_COLOR_TYPE_PALETTE)
-        return;
-
+void k_means_quantization(const image_t& image, const path_t& output) {
     true_histogram_t    histogram(true_histogram(image));
     std::vector<rgba_t> colors;
 
@@ -621,13 +629,14 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
         colors.push_back(color.first);
 
     //auto tests = {2, 4, 8, 16, 32, 64, 128, 256};
-    auto tests = {256};
+    auto tests = {64};
 
     for (const auto& table_size : tests) {
         std::vector<rgba_t> seed_table(k_means_pp(colors, table_size));
         auto                seed_image(quantize(image, seed_table));
 
-        dump_quantization(seed_image, derived_filename(output, std::to_string(table_size) + "_seed"));
+        dump_quantization(seed_image,
+                          derived_filename(output, std::to_string(table_size) + "_seed"));
 
         color_table_t km_table(k_means(image, seed_table, output));
         auto          km(quantize(image, km_table));
@@ -636,6 +645,19 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
 
         palette_optimizations(km.first, output);
     }
+}
+
+/**************************************************************************************************/
+
+void truecolor_optimizations(const image_t& image, const path_t& output) {
+    if (image.color_type() == PNG_COLOR_TYPE_PALETTE)
+        return;
+
+#if 1
+    k_means_quantization(image, output);
+#else
+    k_means_quantization(premultiply(image), derived_filename(output, "prem"));
+#endif
 }
 
 /**************************************************************************************************/

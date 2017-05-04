@@ -6,21 +6,29 @@
 #define PNGPP_RGBA_HPP__
 
 // stdc++
+#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <algorithm>
 
 /**************************************************************************************************/
 
 namespace pngpp {
 
 /**************************************************************************************************/
-// Fixed point 0.8 bit arithmetic. This assumes your 8-bit value represents a
-// floating point value of the range [0..1), and allows closed multiplication of
-// two values. From "Three Wrongs Make a Right", James F. Blinn, IEEE Computer
-// Graphics and Applications, Nov. 1995, Vol. 15, issue 6
-inline constexpr std::uint8_t fixmul(std::uint8_t x, std::uint8_t y) {
-    std::uint32_t i(x * y + 128);
-    return static_cast<std::uint8_t>((i + (i >> 8)) >> 8);
-}
+
+double itof(std::uint8_t x);
+std::uint8_t ftoi(double x);
+
+/**************************************************************************************************/
+// 8-bit fixed point arithmetic. This assumes your 8-bit value represents a
+// floating point value of the range [0..1)
+
+// closed multiplication of two values
+std::uint8_t fixmul(std::uint8_t x, std::uint8_t y);
+
+// closed division of two values
+std::uint8_t fixdiv(std::uint8_t x, std::uint8_t y);
 
 /**************************************************************************************************/
 

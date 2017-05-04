@@ -9,6 +9,7 @@
 
 // stdc++
 #include <vector>
+#include <string>
 
 // libpng
 #include <png.h>
@@ -47,7 +48,10 @@ public:
             std::size_t rowbytes,
             int         color_type)
         : _width(width), _height(height), _depth(depth), _rowbytes(rowbytes),
-          _color_type(color_type), _buffer(rowbytes * _height) {}
+          _color_type(color_type), _buffer(rowbytes * _height) {
+        if (_depth != 8)
+            throw std::runtime_error("depth " + std::to_string(_depth) + " not supported.");
+    }
 
     auto data() {
         return _buffer.data();
@@ -132,10 +136,11 @@ inline bool operator!=(const image_t& x, const image_t& y) {
 }
 
 /**************************************************************************************************/
+// if the image includes an alpha channel, it is premultiplied into it
+image_t premultiply(image_t image);
 
-inline image_t premultiply(image_t image) {
-    return image;
-}
+// if the image includes an alpha channel, it is unpremultiplied from it
+image_t unpremultiply(image_t image);
 
 /**************************************************************************************************/
 

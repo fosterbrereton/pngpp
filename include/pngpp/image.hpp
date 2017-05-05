@@ -9,6 +9,7 @@
 
 // stdc++
 #include <vector>
+#include <string>
 
 // libpng
 #include <png.h>
@@ -23,7 +24,7 @@ namespace pngpp {
 
 /**************************************************************************************************/
 
-typedef std::vector<png_color> color_table_t;
+typedef std::vector<rgba_t> color_table_t;
 
 /**************************************************************************************************/
 
@@ -35,6 +36,7 @@ class image_t {
     int           _color_type{0};
     buffer_t      _buffer;
     color_table_t _color_table;
+    bool          _premultiplied{false};
 
     friend bool operator==(const image_t& x, const image_t& y);
 
@@ -47,7 +49,10 @@ public:
             std::size_t rowbytes,
             int         color_type)
         : _width(width), _height(height), _depth(depth), _rowbytes(rowbytes),
-          _color_type(color_type), _buffer(rowbytes * _height) {}
+          _color_type(color_type), _buffer(rowbytes * _height) {
+        if (_depth != 8)
+            throw std::runtime_error("depth " + std::to_string(_depth) + " not supported.");
+    }
 
     auto data() {
         return _buffer.data();
@@ -95,8 +100,17 @@ public:
         return rowbytes() / width();
     }
 
+    auto premultiplied() const {
+        return _premultiplied;
+    }
+
+
     void set_color_table(color_table_t color_table) {
         _color_table = std::move(color_table);
+    }
+
+    void set_premultiplied(bool premultiplied) {
+        _premultiplied = premultiplied;
     }
 
     template <typename T>
@@ -109,7 +123,7 @@ public:
         rgba<std::uint8_t> base_pixel{base[0],
                                       base[1],
                                       base[2],
-                                      static_cast<std::uint8_t>(bp == 4 ? base[0] : 255)};
+                                      static_cast<std::uint8_t>(bp == 4 ? base[3] : 255)};
         return widen<rgba<T>>(base_pixel);
     }
 
@@ -130,6 +144,13 @@ inline bool operator==(const image_t& x, const image_t& y) {
 inline bool operator!=(const image_t& x, const image_t& y) {
     return !(x == y);
 }
+
+/**************************************************************************************************/
+// if the image includes an alpha channel, it is premultiplied into it
+image_t premultiply(image_t image);
+
+// if the image includes an alpha channel, it is unpremultiplied from it
+image_t unpremultiply(image_t image);
 
 /**************************************************************************************************/
 

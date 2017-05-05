@@ -169,12 +169,29 @@ image_t png_reader_t::read() {
     png_read_end(_png_struct, _png_end_info);
 
     if (has_chunk(PNG_INFO_PLTE)) {
-        png_colorp table{0};
-        int        count{0};
+        png_colorp color_table{0};
+        int        color_count{0};
+        png_bytep  alpha_table{0};
+        int        alpha_count{0};
 
-        png_get_PLTE(_png_struct, _png_info, &table, &count);
+        png_get_PLTE(_png_struct, _png_info, &color_table, &color_count);
 
-        result.set_color_table(color_table_t(&table[0], &table[count]));
+        if (has_chunk(PNG_INFO_tRNS)) {
+            png_color_16p npi{0}; // non palette images?
+
+            png_get_tRNS(_png_struct, _png_info, &alpha_table, &alpha_count, &npi);
+        }
+
+        std::size_t   count(std::max(0, std::min(color_count, alpha_count)));
+        color_table_t table(count);
+
+        for (std::size_t i(0); i < count; ++i) {
+            const png_color& c(color_table[i]);
+            const png_byte   a(alpha_table ? alpha_table[i] : 255);
+            table[i] = {c.red, c.green, c.blue, a};
+        }
+
+        result.set_color_table(table);
     }
 
     return result;
@@ -308,10 +325,29 @@ bufferstream_t png_saver_t::write_one(const image_params_t& image, const one_opt
                  PNG_FILTER_TYPE_DEFAULT);
 
     if (!image._color_table.empty()) {
-        png_set_PLTE(png_struct,
-                     png_info,
-                     image._color_table.data(),
-                     static_cast<int>(image._color_table.size()));
+        std::vector<png_color> ctable;
+        std::vector<png_byte>  atable;
+        bool                   uses_alpha{false};
+
+        for (const auto& entry : image._color_table) {
+            ctable.push_back({entry._r, entry._g, entry._b});
+            atable.push_back(entry._a);
+
+            if (entry._a != 255)
+                uses_alpha = true;
+        }
+
+        png_set_PLTE(png_struct, png_info, ctable.data(), static_cast<int>(ctable.size()));
+
+        if (uses_alpha) {
+            png_color_16 npi{0}; // ???
+
+            png_set_tRNS(png_struct,
+                         png_info,
+                         atable.data(),
+                         static_cast<int>(atable.size()),
+                         &npi);
+        }
     }
 
     png_write_info(png_struct, png_info);

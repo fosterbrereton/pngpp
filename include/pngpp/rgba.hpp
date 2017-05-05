@@ -6,11 +6,29 @@
 #define PNGPP_RGBA_HPP__
 
 // stdc++
+#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <algorithm>
 
 /**************************************************************************************************/
 
 namespace pngpp {
+
+/**************************************************************************************************/
+
+double itof(std::uint8_t x);
+std::uint8_t ftoi(double x);
+
+/**************************************************************************************************/
+// 8-bit fixed point arithmetic. This assumes your 8-bit value represents a
+// floating point value of the range [0..1)
+
+// closed multiplication of two values
+std::uint8_t fixmul(std::uint8_t x, std::uint8_t y);
+
+// closed division of two values
+std::uint8_t fixdiv(std::uint8_t x, std::uint8_t y);
 
 /**************************************************************************************************/
 
@@ -207,12 +225,22 @@ using rgba32_t = rgba<std::uint32_t>;
 using rgba64_t = rgba<std::uint64_t>; // for accumulators, etc.
 
 /**************************************************************************************************/
-
+#if 0
 template <typename T>
 png_color make_png_color(const rgba<T>& src) {
     rgba<png_byte> x(shorten<rgba<png_byte>>(src));
 
     return {x._r, x._g, x._b};
+}
+#endif
+/**************************************************************************************************/
+
+inline rgba_t premultiply(rgba_t c) {
+    c._r = fixmul(c._r, c._a);
+    c._g = fixmul(c._g, c._a);
+    c._b = fixmul(c._b, c._a);
+
+    return c;
 }
 
 /**************************************************************************************************/

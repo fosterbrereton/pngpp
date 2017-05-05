@@ -98,7 +98,7 @@ std::future<std::size_t> verbose_save(const image_t& image,
 
     options._mode = mode;
 
-    return save_png(image, path, options);
+    return save_png(image.premultiplied() ? unpremultiply(image) : image, path, options);
 }
 
 /**************************************************************************************************/
@@ -407,10 +407,8 @@ void palette_optimizations(const image_t& image, const path_t& output) {
 /**************************************************************************************************/
 
 void dump_quantization(const image_t& image, const image_t& error_image, const path_t& output) {
-    path_t error_output(associated_filename(output, "error"));
-
     verbose_save(image, output, save_mode::one);
-    save_png(error_image, error_output, save_options_t());
+    save_png(error_image, associated_filename(output, "error"), save_options_t());
 }
 
 /**************************************************************************************************/
@@ -629,7 +627,7 @@ void k_means_quantization(const image_t& image, const path_t& output) {
         colors.push_back(color.first);
 
     //auto tests = {2, 4, 8, 16, 32, 64, 128, 256};
-    auto tests = {64};
+    auto tests = {256};
 
     for (const auto& table_size : tests) {
         std::vector<rgba_t> seed_table(k_means_pp(colors, table_size));
@@ -653,7 +651,7 @@ void truecolor_optimizations(const image_t& image, const path_t& output) {
     if (image.color_type() == PNG_COLOR_TYPE_PALETTE)
         return;
 
-#if 1
+#if 0
     k_means_quantization(image, output);
 #else
     k_means_quantization(premultiply(image), output);

@@ -36,6 +36,7 @@ class image_t {
     int           _color_type{0};
     buffer_t      _buffer;
     color_table_t _color_table;
+    bool          _premultiplied{false};
 
     friend bool operator==(const image_t& x, const image_t& y);
 
@@ -99,8 +100,17 @@ public:
         return rowbytes() / width();
     }
 
+    auto premultiplied() const {
+        return _premultiplied;
+    }
+
+
     void set_color_table(color_table_t color_table) {
         _color_table = std::move(color_table);
+    }
+
+    void set_premultiplied(bool premultiplied) {
+        _premultiplied = premultiplied;
     }
 
     template <typename T>
@@ -113,7 +123,7 @@ public:
         rgba<std::uint8_t> base_pixel{base[0],
                                       base[1],
                                       base[2],
-                                      static_cast<std::uint8_t>(bp == 4 ? base[0] : 255)};
+                                      static_cast<std::uint8_t>(bp == 4 ? base[3] : 255)};
         return widen<rgba<T>>(base_pixel);
     }
 

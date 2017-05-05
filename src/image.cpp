@@ -15,7 +15,7 @@ namespace pngpp {
 /**************************************************************************************************/
 
 image_t premultiply(image_t image) {
-    if (image.bpp() == 4) {
+    if (image.bpp() == 4 && !image.premultiplied()) {
         auto area{image.area()};
         auto base{image.data()};
 
@@ -29,6 +29,8 @@ image_t premultiply(image_t image) {
                 p[2] = fixmul(p[2], a);
             }
         });
+
+        image.set_premultiplied(true);
     }
 
     return image;
@@ -38,7 +40,7 @@ image_t premultiply(image_t image) {
 
 image_t unpremultiply(image_t image) {
     // there be rounding error dragons here.
-    if (image.bpp() == 4) {
+    if (image.bpp() == 4 && image.premultiplied()) {
         auto area{image.area()};
         auto base{image.data()};
 
@@ -52,6 +54,8 @@ image_t unpremultiply(image_t image) {
                 p[2] = fixdiv(p[2], a);
             }
         });
+
+        image.set_premultiplied(false);
     }
 
     return image;

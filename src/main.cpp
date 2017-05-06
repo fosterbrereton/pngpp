@@ -17,89 +17,11 @@
 #include <pngpp/files.hpp>
 #include <pngpp/png.hpp>
 #include <pngpp/rgba.hpp>
+#include <pngpp/image_utils.hpp>
 
 /**************************************************************************************************/
 
 using namespace pngpp;
-
-/**************************************************************************************************/
-
-path_t associated_filename(path_t src, const std::string& new_leaf) {
-    // takes ("/path/to.png", "extra") and returns "/path/to_extra.png"
-    std::string stem(src.stem().string());
-    std::string extension(src.extension().string());
-
-    src.remove_filename();
-
-    std::string new_filename(stem + "_" + new_leaf + extension);
-
-    return src / new_filename;
-}
-
-/**************************************************************************************************/
-
-path_t derived_filename(path_t src, const std::string& new_leaf) {
-    // takes ("/path/to.png", "extra") and returns "/path/extra_to.png"
-    std::string leaf(src.leaf().string());
-
-    src.remove_filename();
-
-    std::string new_filename(new_leaf + "_" + leaf);
-
-    return src / new_filename;
-}
-
-/**************************************************************************************************/
-
-void dump_color_table(const image_t& image, const path_t& output) {
-    color_table_t color_table(image.color_table());
-
-    if (color_table.empty())
-        return;
-
-    constexpr std::size_t swatch_size_k(32);
-
-    const std::size_t count(color_table.size());
-    const std::size_t dim(std::ceil(std::sqrt(count)));
-    const std::size_t width(dim * swatch_size_k);
-    const std::size_t height(dim * swatch_size_k);
-    const std::size_t depth(8);
-    const std::size_t rowbytes(width * 4);
-    image_t           table(width, height, depth, rowbytes, PNG_COLOR_TYPE_RGB_ALPHA);
-    auto              first(table.data());
-
-    for (std::size_t y(0); y < dim; ++y) {
-        for (std::size_t i(0); i < swatch_size_k; ++i) {
-            for (std::size_t x(0); x < dim; ++x) {
-                std::size_t   index(dim * y + x);
-                bool          valid(index < count);
-                const rgba_t& entry(valid ? color_table[index] : rgba_t());
-                for (std::size_t j(0); j < swatch_size_k; ++j) {
-                    *first++ = entry._r;
-                    *first++ = entry._g;
-                    *first++ = entry._b;
-                    *first++ = i > j ? entry._a : valid ? 255 : 0;
-                }
-            }
-        }
-    }
-
-    save_png(table, associated_filename(output, "table"), save_options_t());
-}
-
-/**************************************************************************************************/
-
-std::future<std::size_t> verbose_save(const image_t& image,
-                                      const path_t&  path,
-                                      save_mode      mode = save_mode::max) {
-    dump_color_table(image, path);
-
-    save_options_t options;
-
-    options._mode = mode;
-
-    return save_png(image.premultiplied() ? unpremultiply(image) : image, path, options);
-}
 
 /**************************************************************************************************/
 
@@ -135,10 +57,8 @@ indexed_histogram_table_t make_indexed_histogram_table(const image_t& image) {
 
 typedef std::vector<std::uint8_t> index_map_t;
 
-image_t reindex_image(const image_t& image, const index_map_t& map) {
-    image_t result(image);
-
-    for (auto& entry : result)
+image_t reindex_image(image_t image, const index_map_t& map) {
+    for (auto& entry : image)
         entry = map[entry];
 
     const auto&   src_table(image.color_table());
@@ -148,9 +68,9 @@ image_t reindex_image(const image_t& image, const index_map_t& map) {
     for (std::size_t i(0); i < count; ++i)
         dst_table[map[i]] = src_table[i];
 
-    result.set_color_table(dst_table);
+    image.set_color_table(dst_table);
 
-    return result;
+    return image;
 }
 
 image_t reindex_image(const image_t& image, const indexed_histogram_table_t& table) {
@@ -177,13 +97,13 @@ inline double grey(const rgba_t& c) {
 
 /**************************************************************************************************/
 
-typedef std::map<rgba_t, std::size_t> true_histogram_t;
+typedef std::map<rgba_t, std::size_t> truecolor_histogram_t;
 
-true_histogram_t true_histogram(const image_t& image) {
-    true_histogram_t result;
-    auto             bpp(image.bpp());
-    auto             p(image.begin());
-    auto             last(image.end());
+truecolor_histogram_t truecolor_histogram(const image_t& image) {
+    truecolor_histogram_t result;
+    auto                  bpp(image.bpp());
+    auto                  p(image.begin());
+    auto                  last(image.end());
 
     if (bpp == 3) {
         while (p != last) {
@@ -244,6 +164,10 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
 
                                        for (const auto& seed : _seeds) {
                                            d = std::min(d, sq_distance(color, seed));
+
+                                           // color is a seed; we're done here.
+                                           if (d == 0)
+                                               break;
                                        }
 
                                        _values[i] = d;
@@ -255,16 +179,14 @@ std::vector<std::int64_t> compute_sq_d(const std::vector<rgba_t>& colors,
 /**************************************************************************************************/
 
 std::vector<rgba_t> k_means_pp(const std::vector<rgba_t>& v, std::size_t n) {
-    if (v.size() <= n)
+    if (v.empty() || v.size() <= n)
         return v;
 
     static std::random_device rd;
     static std::mt19937       gen(rd());
 
-    std::vector<rgba_t> result;
-    std::size_t         i(gen() % v.size());
-
-    result.push_back(v[i]);
+    std::uniform_int_distribution<> i_dist(0, v.size() - 1);
+    std::vector<rgba_t>             result(1, v[i_dist(gen)]);
 
     while (result.size() < n) {
         auto                         d(compute_sq_d(v, result));
@@ -311,6 +233,10 @@ std::pair<std::size_t, double> quantize(const rgba_t& c, const color_table_t& ta
 
         index     = i;
         min_error = error;
+
+        // exact match; no need to keep looking
+        if (min_error == 0)
+            break;
     }
 
     return std::make_pair(index, std::sqrt(min_error));
@@ -363,6 +289,8 @@ void palette_optimizations(const image_t& image, const path_t& output) {
     indexed_histogram_table_t hist_table(make_indexed_histogram_table(image));
 
     std::sort(hist_table.begin(), hist_table.end(), [& _image = image](auto& x, auto& y) {
+        // first compare histogram counts (then the actual colors if the counts
+        // are the same).
         if (x.first < y.first) {
             return true;
         } else if (y.first < x.first) {
@@ -380,34 +308,21 @@ void palette_optimizations(const image_t& image, const path_t& output) {
 #endif
     });
 
-    indexed_histogram_table_t best_table;
-    std::size_t               best_size{std::numeric_limits<std::size_t>::max()};
-
-    auto save_and_best(
-        [& _image     = image,
-         &_best_size  = best_size,
-         &_best_table = best_table](const indexed_histogram_table_t& table, const path_t& path) {
-            auto        future_size = verbose_save(reindex_image(_image, table), path);
-            std::size_t size        = future_size.get();
-
-            if (size >= _best_size)
-                return;
-
-            _best_size  = size;
-            _best_table = table;
-        });
-
-    save_and_best(hist_table, derived_filename(output, "sorted"));
+    dump_image(reindex_image(image, hist_table),
+               derived_filename(output, "sorted"),
+               save_mode::max).get();
 
     std::reverse(hist_table.begin(), hist_table.end());
 
-    save_and_best(hist_table, derived_filename(output, "sorted_reverse"));
+    dump_image(reindex_image(image, hist_table),
+               derived_filename(output, "sorted_reverse"),
+               save_mode::max).get();
 }
 
 /**************************************************************************************************/
 
 void dump_quantization(const image_t& image, const image_t& error_image, const path_t& output) {
-    verbose_save(image, output, save_mode::one);
+    dump_image(image, output, save_mode::one);
     save_png(error_image, associated_filename(output, "error"), save_options_t());
 }
 
@@ -620,8 +535,8 @@ color_table_t k_means(const image_t& image, color_table_t color_table, const pat
 /**************************************************************************************************/
 
 void k_means_quantization(const image_t& image, const path_t& output) {
-    true_histogram_t    histogram(true_histogram(image));
-    std::vector<rgba_t> colors;
+    truecolor_histogram_t histogram(truecolor_histogram(image));
+    std::vector<rgba_t>   colors;
 
     for (const auto& color : histogram)
         colors.push_back(color.first);
@@ -631,9 +546,8 @@ void k_means_quantization(const image_t& image, const path_t& output) {
 
     for (const auto& table_size : tests) {
         std::vector<rgba_t> seed_table(k_means_pp(colors, table_size));
-        auto                seed_image(quantize(image, seed_table));
 
-        dump_quantization(seed_image,
+        dump_quantization(quantize(image, seed_table),
                           derived_filename(output, std::to_string(table_size) + "_seed"));
 
         color_table_t km_table(k_means(image, seed_table, output));
@@ -671,12 +585,13 @@ int main(int argc, char** argv) try {
     path_t        output(argv[2]);
     const image_t original(read_png(input.string()));
 
-    if (!exists(output))
-        create_directory(output);
+    // make the output directory fresh
+    remove_all(output);
+    create_directory(output);
 
     output = canonical(output) / input.leaf();
 
-    verbose_save(original, output);
+    dump_image(original, output, save_mode::max);
 
     truecolor_optimizations(original, output);
 

@@ -104,7 +104,6 @@ public:
         return _premultiplied;
     }
 
-
     void set_color_table(color_table_t color_table) {
         _color_table = std::move(color_table);
     }
